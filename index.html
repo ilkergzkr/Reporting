@@ -1043,6 +1043,7 @@ function doGet(e) {
     </div>
 
     <div class="profile-avatar-big" id="profile-avatar-big"></div>
+    <button onclick="openAvatarPicker()" style="margin-top:0.5rem;background:none;border:1px solid var(--border2);border-radius:20px;color:var(--muted);font-size:0.75rem;padding:0.3rem 0.9rem;cursor:pointer;font-family:Syne,sans-serif;">✦ Change Avatar</button>
     <div class="profile-name-display" id="profile-name-display"></div>
     <div class="profile-username-display" id="profile-username-display"></div>
 
@@ -1223,8 +1224,37 @@ function getReports() { return _reports; }
 function getScriptUrl() { return _scriptUrl; }
 function getLearnedSkills(username) { return _skills[username] || []; }
 
+// ── Avatar Options ──
+const AVATAR_OPTIONS = [
+  // Bottts robots - auto-generated from seeds
+  { type: 'bottts', seed: 'robot1',   label: 'Robot 1' },
+  { type: 'bottts', seed: 'robot2',   label: 'Robot 2' },
+  { type: 'bottts', seed: 'robot3',   label: 'Robot 3' },
+  { type: 'bottts', seed: 'robot4',   label: 'Robot 4' },
+  { type: 'bottts', seed: 'robot5',   label: 'Robot 5' },
+  { type: 'bottts', seed: 'robot6',   label: 'Robot 6' },
+  // Haply product images
+  { type: 'image', seed: 'inverse3',  label: 'Inverse3',   url: 'https://images.squarespace-cdn.com/content/v1/6303dfe67e33741f9d4a2eed/b0627f93-c29f-4129-993c-7f96e17e5c5f/Use_1+%28Purple+Light%29.jpg' },
+  { type: 'image', seed: 'minverse',  label: 'MinVerse',   url: 'https://www.haply.co/minverse' },
+  { type: 'haply-logo', seed: 'haply-logo', label: 'Haply Logo', url: 'https://images.squarespace-cdn.com/content/v1/6303dfe67e33741f9d4a2eed/66cae9b5-a460-4216-b323-266a600c4c8d/Logo.png?format=1500w' },
+];
+
 function getAvatarUrl(username) {
-  return 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(username) + '&backgroundColor=0a0a0f';
+  // Check if user has a saved avatar seed
+  const saved = currentUser && currentUser.username === username ? currentUser.avatarSeed : null;
+  const seed = saved || username;
+  // Check if it's a product image
+  const opt = AVATAR_OPTIONS.find(o => o.seed === seed);
+  if (opt && opt.type === 'image') return opt.url;
+  if (opt && opt.type === 'haply-logo') return opt.url;
+  return 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(seed) + '&backgroundColor=13131a';
+}
+
+function getAvatarUrlForUser(user) {
+  const seed = user.avatarSeed || user.username;
+  const opt = AVATAR_OPTIONS.find(o => o.seed === seed);
+  if (opt && (opt.type === 'image' || opt.type === 'haply-logo')) return opt.url;
+  return 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(seed) + '&backgroundColor=13131a';
 }
 
 
@@ -2390,7 +2420,7 @@ function renderProfile() {
   const bigAvatar = document.getElementById('profile-avatar-big');
   bigAvatar.textContent = '';
   bigAvatar.style.cssText = 'background:none;padding:0;overflow:hidden;border-radius:50%;';
-  bigAvatar.innerHTML = '<img src="' + getAvatarUrl(currentUser.username) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />';
+  bigAvatar.innerHTML = '<img src="' + getAvatarUrlForUser(currentUser) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />';
   document.getElementById('profile-name-display').textContent = displayName;
   document.getElementById('profile-username-display').textContent = '@' + currentUser.username;
   document.getElementById('profile-info-name').textContent = currentUser.name || '—';
@@ -2691,7 +2721,7 @@ function renderUsers() {
     const userReports = reports.filter(r => r.worker === (u.name || u.username) || r.worker === u.username).length;
     return `
       <div class="user-list-card">
-        <div class="user-list-avatar" style="background:none;padding:0;overflow:hidden;"><img src="${getAvatarUrl(u.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" /></div>
+        <div class="user-list-avatar" style="background:none;padding:0;overflow:hidden;"><img src="${getAvatarUrlForUser(u)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" /></div>
         <div class="user-list-info">
           <div class="user-list-name">${u.name || u.username}</div>
           <div class="user-list-meta">@${u.username}${u.email ? ' · ' + u.email : ''}</div>
@@ -2757,6 +2787,58 @@ document.getElementById('mgr-user').addEventListener('keydown', e => { if(e.key=
 // Session is not persisted — user must log in each time for security
 // (Firebase data is always fresh on next load)
 
+
+// ── Avatar Picker ──
+function openAvatarPicker() {
+  const grid = document.getElementById('avatar-picker-grid');
+  const currentSeed = currentUser.avatarSeed || currentUser.username;
+  grid.innerHTML = AVATAR_OPTIONS.map(opt => {
+    const imgUrl = (opt.type === 'image' || opt.type === 'haply-logo')
+      ? opt.url
+      : 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(opt.seed) + '&backgroundColor=13131a';
+    const isSelected = currentSeed === opt.seed;
+    return `<div onclick="selectAvatar('${opt.seed}')" style="cursor:pointer;border-radius:12px;overflow:hidden;border:2px solid ${isSelected ? 'var(--accent)' : 'var(--border)'};aspect-ratio:1;background:var(--surface2);transition:border 0.2s;">
+      <img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" />
+    </div>`;
+  }).join('');
+  document.getElementById('avatar-picker-modal').style.display = 'flex';
+}
+
+function closeAvatarPicker() {
+  document.getElementById('avatar-picker-modal').style.display = 'none';
+}
+
+async function selectAvatar(seed) {
+  currentUser.avatarSeed = seed;
+  // Save to Firestore
+  try {
+    const userDoc = _users.find(u => u.username === currentUser.username);
+    if (userDoc) {
+      await db.doc('users/' + currentUser.username).set({ ...userDoc, avatarSeed: seed });
+    }
+    // Update localStorage session
+    localStorage.setItem('sf_session', JSON.stringify(currentUser));
+  } catch(e) { console.error('Avatar save error:', e); }
+  closeAvatarPicker();
+  renderProfile();
+  // Update header avatar
+  const avatarEl = document.getElementById('user-avatar');
+  if (avatarEl) {
+    avatarEl.textContent = '';
+    avatarEl.style.cssText = 'background:none;padding:0;overflow:hidden;';
+    const img = document.createElement('img');
+    img.src = getAvatarUrl(currentUser.username);
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+    avatarEl.appendChild(img);
+  }
+  showToast('✓ Avatar updated!');
+}
+
+// Close modal on backdrop click
+document.getElementById('avatar-picker-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeAvatarPicker();
+});
+
 // Bootstrap: load Firestore data, restore session, apply language
 loadAllFromFirestore().then(() => {
   applyLang();
@@ -2771,5 +2853,16 @@ loadAllFromFirestore().then(() => {
 
 // Functions are globally accessible (regular script tag)
 </script>
+
+<!-- Avatar Picker Modal -->
+<div id="avatar-picker-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:1.5rem;width:min(360px,90vw);max-height:80vh;overflow-y:auto;">
+    <div style="font-family:Syne,sans-serif;font-weight:700;font-size:1rem;color:var(--text);margin-bottom:1rem;">Choose Avatar</div>
+    <div id="avatar-picker-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;"></div>
+    <div style="display:flex;gap:0.75rem;margin-top:1.25rem;justify-content:flex-end;">
+      <button onclick="closeAvatarPicker()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:0.5rem 1rem;cursor:pointer;font-family:Syne,sans-serif;">Cancel</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
