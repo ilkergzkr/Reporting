@@ -1223,6 +1223,11 @@ function getReports() { return _reports; }
 function getScriptUrl() { return _scriptUrl; }
 function getLearnedSkills(username) { return _skills[username] || []; }
 
+function getAvatarUrl(username) {
+  return 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(username) + '&backgroundColor=0a0a0f';
+}
+
+
 function getCatalog() {
   return _catalog ? JSON.parse(JSON.stringify(_catalog)) : JSON.parse(JSON.stringify(DEFAULT_CATALOG));
 }
@@ -1363,7 +1368,13 @@ function enterApp() {
   localStorage.setItem('sf_session', JSON.stringify(currentUser));
   showScreen('app-screen');
   document.getElementById('user-display').textContent = currentUser.name || currentUser.username;
-  document.getElementById('user-avatar').textContent = (currentUser.name || currentUser.username)[0].toUpperCase();
+  const avatarEl = document.getElementById('user-avatar');
+  avatarEl.textContent = '';
+  avatarEl.style.cssText = 'background:none;padding:0;overflow:hidden;';
+  const avatarImg = document.createElement('img');
+  avatarImg.src = getAvatarUrl(currentUser.username);
+  avatarImg.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+  avatarEl.appendChild(avatarImg);
   document.getElementById('home-welcome').textContent = currentUser.name || currentUser.username;
   document.getElementById('admin-menu-card').style.display = currentUser.isAdmin ? 'flex' : 'none';
   applyLang();
@@ -2376,7 +2387,10 @@ function renderProfile() {
   const displayName = currentUser.name || currentUser.username;
   const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
 
-  document.getElementById('profile-avatar-big').textContent = initials;
+  const bigAvatar = document.getElementById('profile-avatar-big');
+  bigAvatar.textContent = '';
+  bigAvatar.style.cssText = 'background:none;padding:0;overflow:hidden;border-radius:50%;';
+  bigAvatar.innerHTML = '<img src="' + getAvatarUrl(currentUser.username) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />';
   document.getElementById('profile-name-display').textContent = displayName;
   document.getElementById('profile-username-display').textContent = '@' + currentUser.username;
   document.getElementById('profile-info-name').textContent = currentUser.name || '—';
@@ -2674,11 +2688,10 @@ function renderUsers() {
   }
 
   const cards = users.map(u => {
-    const initials = (u.name || u.username).split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
     const userReports = reports.filter(r => r.worker === (u.name || u.username) || r.worker === u.username).length;
     return `
       <div class="user-list-card">
-        <div class="user-list-avatar">${initials}</div>
+        <div class="user-list-avatar" style="background:none;padding:0;overflow:hidden;"><img src="${getAvatarUrl(u.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" /></div>
         <div class="user-list-info">
           <div class="user-list-name">${u.name || u.username}</div>
           <div class="user-list-meta">@${u.username}${u.email ? ' · ' + u.email : ''}</div>
