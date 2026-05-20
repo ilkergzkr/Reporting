@@ -1214,7 +1214,7 @@ function showLoadingOverlay(show) {
 function startListeners() {
   db.collection('users').onSnapshot(snap => {
     _users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    tryRefreshAdmin();
+    if (!_suppressUsersSnapshot) tryRefreshAdmin();
   });
   db.collection('reports').orderBy('timestamp', 'desc').onSnapshot(snap => {
     _reports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1224,8 +1224,10 @@ function startListeners() {
     if (snap.exists) {
       _catalog = snap.data();
       renderProductGrid();
-      const catTab = document.getElementById('tab-catalog');
-      if (catTab && catTab.closest('.admin-tab.active')) renderCatalogEditor();
+      if (!_suppressCatalogSnapshot) {
+        const catTab = document.getElementById('tab-catalog');
+        if (catTab && catTab.closest('.admin-tab.active')) renderCatalogEditor();
+      }
     }
   });
 }
@@ -1287,9 +1289,14 @@ function getCatalog() {
   return _catalog ? JSON.parse(JSON.stringify(_catalog)) : JSON.parse(JSON.stringify(DEFAULT_CATALOG));
 }
 
+let _suppressCatalogSnapshot = false;
+let _suppressUsersSnapshot = false;
+
 async function saveCatalogAsync(cat) {
   _catalog = cat;
+  _suppressCatalogSnapshot = true;
   await db.doc('config/catalog').set(cat);
+  setTimeout(() => { _suppressCatalogSnapshot = false; }, 2000);
 }
 
 async function saveLearnedSkills(username, skills) {
@@ -2465,12 +2472,14 @@ async function saveProfileInfo() {
 
   if (!currentUser.isAdmin) {
     try {
+      _suppressUsersSnapshot = true;
       await db.doc('users/' + currentUser.username).set({
         ...(_users.find(u => u.username === currentUser.username) || {}),
         name: newName,
         email: newEmail
       });
-    } catch(e) { showToast('⚠ Could not save profile.'); return; }
+      setTimeout(() => { _suppressUsersSnapshot = false; }, 2000);
+    } catch(e) { _suppressUsersSnapshot = false; showToast('⚠ Could not save profile.'); return; }
   }
   currentUser.name = newName;
   currentUser.email = newEmail;
