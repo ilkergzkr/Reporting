@@ -28,6 +28,22 @@
     --subtle: #4444aa33;
     font-family: 'Syne', sans-serif;
   }
+  body.light-mode {
+    --bg: #f0f2f8;
+    --surface: #ffffff;
+    --surface2: #e8eaf2;
+    --border: rgba(0,0,0,0.08);
+    --border2: rgba(0,0,0,0.15);
+    --accent: #4f6ef7;
+    --accent2: #7c3aed;
+    --green: #059669;
+    --amber: #d97706;
+    --red: #dc2626;
+    --text: #0f0f1a;
+    --muted: #5555777;
+    --subtle: #4f6ef711;
+  }
+  body.light-mode::before { opacity: 0.15; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
 
@@ -697,7 +713,10 @@
   <div class="login-title">Shop Floor</div>
   <div class="login-sub" id="login-sub-text">Daily Report System</div>
 
-  <div class="login-lang-row">
+  <div class="login-lang-row" style="display:flex;align-items:center;gap:0.75rem;">
+    <button id="theme-toggle-btn" onclick="toggleTheme()" style="background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:0.3rem 0.75rem;cursor:pointer;font-size:0.8rem;color:var(--muted);font-family:Syne,sans-serif;display:flex;align-items:center;gap:0.4rem;">
+      <span id="theme-icon">☀️</span><span id="theme-label">Light</span>
+    </button>
     <div class="lang-switcher">
       <button class="lang-switcher-btn active" onclick="setLang('en')" id="lang-btn-en">
         <span>🏴󠁧󠁢󠁥󠁮󠁧󠁿</span> EN
@@ -795,6 +814,9 @@
   <div class="topbar">
     <div class="topbar-brand">Shop Floor</div>
     <div class="topbar-user">
+      <button onclick="toggleTheme()" style="background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.75rem;color:var(--muted);font-family:Syne,sans-serif;margin-right:0.25rem;" id="theme-toggle-btn-app">
+        <span id="theme-icon-app">☀️</span>
+      </button>
       <div class="lang-switcher" style="margin-right:0.25rem;">
         <button class="lang-switcher-btn active" onclick="setLang('en')" id="lang-btn-en-app">
           <span>🏴󠁧󠁢󠁥󠁮󠁧󠁿</span> EN
@@ -2841,8 +2863,27 @@ window.addEventListener('click', function(e) {
   if (modal && e.target === modal) closeAvatarPicker();
 });
 
+
+// ── Theme Toggle ──
+let currentTheme = localStorage.getItem('sf_theme') || 'dark';
+
+function applyTheme() {
+  const isLight = currentTheme === 'light';
+  document.body.classList.toggle('light-mode', isLight);
+  // Update all toggle buttons
+  document.querySelectorAll('[id^="theme-icon"]').forEach(el => el.textContent = isLight ? '🌙' : '☀️');
+  document.querySelectorAll('[id^="theme-label"]').forEach(el => el.textContent = isLight ? 'Dark' : 'Light');
+}
+
+function toggleTheme() {
+  currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('sf_theme', currentTheme);
+  applyTheme();
+}
+
 // Bootstrap: load Firestore data, restore session, apply language
 loadAllFromFirestore().then(() => {
+  applyTheme();
   applyLang();
   try {
     const saved = localStorage.getItem('sf_session');
