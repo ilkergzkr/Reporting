@@ -1226,17 +1226,18 @@ function getLearnedSkills(username) { return _skills[username] || []; }
 
 // ── Avatar Options ──
 const AVATAR_OPTIONS = [
-  // Bottts robots - auto-generated from seeds
-  { type: 'bottts', seed: 'robot1',   label: 'Robot 1' },
-  { type: 'bottts', seed: 'robot2',   label: 'Robot 2' },
-  { type: 'bottts', seed: 'robot3',   label: 'Robot 3' },
-  { type: 'bottts', seed: 'robot4',   label: 'Robot 4' },
-  { type: 'bottts', seed: 'robot5',   label: 'Robot 5' },
-  { type: 'bottts', seed: 'robot6',   label: 'Robot 6' },
-  // Haply product images
-  { type: 'image', seed: 'inverse3',  label: 'Inverse3',   url: 'https://images.squarespace-cdn.com/content/v1/6303dfe67e33741f9d4a2eed/b0627f93-c29f-4129-993c-7f96e17e5c5f/Use_1+%28Purple+Light%29.jpg' },
-  { type: 'image', seed: 'minverse',  label: 'MinVerse',   url: 'https://www.haply.co/minverse' },
-  { type: 'haply-logo', seed: 'haply-logo', label: 'Haply Logo', url: 'https://images.squarespace-cdn.com/content/v1/6303dfe67e33741f9d4a2eed/66cae9b5-a460-4216-b323-266a600c4c8d/Logo.png?format=1500w' },
+  { type: 'bottts', seed: 'robot1',  label: 'Robot 1' },
+  { type: 'bottts', seed: 'robot2',  label: 'Robot 2' },
+  { type: 'bottts', seed: 'robot3',  label: 'Robot 3' },
+  { type: 'bottts', seed: 'robot4',  label: 'Robot 4' },
+  { type: 'bottts', seed: 'robot5',  label: 'Robot 5' },
+  { type: 'bottts', seed: 'robot6',  label: 'Robot 6' },
+  { type: 'bottts', seed: 'robot7',  label: 'Robot 7' },
+  { type: 'bottts', seed: 'robot8',  label: 'Robot 8' },
+  { type: 'bottts', seed: 'robot9',  label: 'Robot 9' },
+  { type: 'bottts', seed: 'robot10', label: 'Robot 10' },
+  { type: 'bottts', seed: 'robot11', label: 'Robot 11' },
+  { type: 'bottts', seed: 'robot12', label: 'Robot 12' },
 ];
 
 function getAvatarUrl(username) {
@@ -2835,8 +2836,9 @@ async function selectAvatar(seed) {
 }
 
 // Close modal on backdrop click
-document.getElementById('avatar-picker-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeAvatarPicker();
+window.addEventListener('click', function(e) {
+  const modal = document.getElementById('avatar-picker-modal');
+  if (modal && e.target === modal) closeAvatarPicker();
 });
 
 // Bootstrap: load Firestore data, restore session, apply language
