@@ -814,7 +814,7 @@
 <!-- MAIN APP -->
 <div id="app-screen" class="screen">
   <div class="topbar">
-    <div class="topbar-brand">Shop Floor</div>
+    <div class="topbar-brand" onclick="goTo('page-home')" style="cursor:pointer;">Shop Floor</div>
     <div class="topbar-user">
       <button onclick="toggleTheme()" style="background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.75rem;color:var(--muted);font-family:Syne,sans-serif;margin-right:0.25rem;" id="theme-toggle-btn-app">
         <span id="theme-icon-app">☀️</span>
@@ -828,8 +828,17 @@
         </button>
       </div>
       <div class="avatar" id="user-avatar"></div>
-      <div class="user-name" id="user-display"></div>
-      <button class="btn-logout" id="btn-logout-main" onclick="doLogout()">Logout</button>
+      <div class="user-name" id="user-display" onclick="toggleUserDropdown()" style="cursor:pointer;display:flex;align-items:center;gap:0.3rem;">
+        <span id="user-display-name"></span><span style="font-size:0.6rem;opacity:0.6;">▼</span>
+      </div>
+      <!-- User Dropdown -->
+      <div id="user-dropdown" style="display:none;position:absolute;top:3.5rem;right:1rem;background:var(--surface);border:1px solid var(--border2);border-radius:12px;min-width:160px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.3);overflow:hidden;">
+        <div onclick="goTo('page-profile');closeUserDropdown()" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;color:var(--text);transition:background 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">👤 Profile</div>
+        <div onclick="goTo('page-settings');closeUserDropdown()" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;color:var(--text);transition:background 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">⚙️ Settings</div>
+        <div style="height:1px;background:var(--border);margin:0.25rem 0;"></div>
+        <div onclick="doLogout();closeUserDropdown()" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;color:var(--red);transition:background 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">🚪 Logout</div>
+      </div>
+      <button class="btn-logout" id="btn-logout-main" onclick="doLogout()" style="display:none;">Logout</button>
     </div>
   </div>
 
@@ -1495,7 +1504,7 @@ async function doRegister() {
 function enterApp() {
   localStorage.setItem('sf_session', JSON.stringify(currentUser));
   showScreen('app-screen');
-  document.getElementById('user-display').textContent = currentUser.name || currentUser.username;
+  const userDisplayEl = document.getElementById('user-display-name'); if(userDisplayEl) userDisplayEl.textContent = currentUser.name || currentUser.username;
   const avatarEl = document.getElementById('user-avatar');
   avatarEl.textContent = '';
   avatarEl.style.cssText = 'background:none;padding:0;overflow:hidden;';
@@ -2545,7 +2554,7 @@ function renderProfile() {
   document.getElementById('pass-error').style.display = 'none';
   // Hide username change for admin
   const usernameSection = document.getElementById('change-username-section');
-  if (usernameSection) usernameSection.style.display = currentUser.isAdmin ? 'none' : '';
+  if (usernameSection) usernameSection.style.display = 'block';
   // Reset username fields
   const newUsernameInput = document.getElementById('new-username-input');
   if (newUsernameInput) newUsernameInput.value = '';
@@ -3079,6 +3088,28 @@ async function changeUsername() {
     btn.textContent = 'Update Username'; btn.disabled = false;
   }
 }
+
+
+// ── User Dropdown ──
+function toggleUserDropdown() {
+  const dd = document.getElementById('user-dropdown');
+  if (!dd) return;
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+function closeUserDropdown() {
+  const dd = document.getElementById('user-dropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('user-dropdown');
+  const trigger = document.getElementById('user-display');
+  if (dd && trigger && !dd.contains(e.target) && !trigger.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
 
 // Bootstrap: load Firestore data, restore session, apply language
 loadAllFromFirestore().then(async () => {
