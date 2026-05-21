@@ -1343,9 +1343,12 @@ function getAssembliesFor(productName) {
   const cat = getCatalog();
   return cat.assemblies[productName] || [];
 }
-function getTasksFor(assemblyName) {
+function getTasksFor(assemblyName, prodName) {
   const cat = getCatalog();
-  return cat.tasks[assemblyName] || [];
+  const key = prodName ? prodName + '::' + assemblyName : assemblyName;
+  // Migrate old key if exists
+  if (prodName && !cat.tasks[key] && cat.tasks[assemblyName]) return cat.tasks[assemblyName];
+  return cat.tasks[key] || [];
 }
 
 
@@ -1479,7 +1482,7 @@ function selectProduct(name) {
 
 function selectAssembly(name) {
   selectedAssembly = name;
-  const tasks = getTasksFor(name);
+  const tasks = getTasksFor(name, selectedProduct);
 
   document.getElementById('form-product-tag').textContent = selectedProduct;
   document.getElementById('form-assembly-tag').textContent = selectedAssembly;
@@ -1510,7 +1513,7 @@ function selectAssembly(name) {
   const skillsSection = document.getElementById('learned-skills-section');
   if (name === 'Head Assembly') {
     skillsSection.style.display = 'block';
-    const headTasks = getTasksFor('Head Assembly');
+    const headTasks = getTasksFor('Head Assembly', selectedProduct);
     const userSkills = getLearnedSkills(currentUser.username);
     document.getElementById('skills-checkboxes').innerHTML = headTasks.map(t => `
       <div class="skill-check-item ${userSkills.includes(t) ? 'checked' : ''}" onclick="toggleSkill(this, '${t.replace(/'/g,"\\'")}')">
@@ -1660,7 +1663,8 @@ function renderCatalogEditor() {
       </div>
       <div class="catalog-product-body" id="cpbody-${pi}">
         ${assemblies.map((asm, ai) => {
-          const tasks = cat.tasks[asm] || [];
+          const taskKey = prod.name + '::' + asm;
+          const tasks = cat.tasks[taskKey] || cat.tasks[asm] || [];
           const asmEsc = asm.replace(/"/g, '&quot;');
           const ceId = `ce-asm-${pi}-${ai}`;
           const confirmId = `confirm-asm-${pi}-${ai}`;
@@ -1818,7 +1822,7 @@ function catalogMenuAction(action) {
     _cgmCtx = null;
     if      (ctx.type === 'product')  confirmDeleteProduct(ctx.pi);
     else if (ctx.type === 'assembly') confirmRemoveAssembly(ctx.pi, ctx.ai);
-    else if (ctx.type === 'task')     confirmRemoveTask(ctx.asmName, ctx.ti);
+    else if (ctx.type === 'task')     confirmRemoveTask(ctx.asmName, ctx.ti, ctx.pi);
   }
 }
 
@@ -1882,7 +1886,7 @@ function confirmCeRename(ceId) {
   if (!newName) { renderCatalogEditor(); return; }
   if      (type === 'product')  renameProduct(pi, newName);
   else if (type === 'assembly') renameAssembly(pi, ai, newName);
-  else if (type === 'task')     renameTask(asm, ti, newName);
+  else if (type === 'task')     renameTask(asm, ti, newName, pi);
 }
 
 // ── Delete modal ──
@@ -1929,10 +1933,12 @@ function confirmRemoveAssembly(pi, ai) {
   showDeleteModal('Remove assembly?', '"' + asm + '" will be removed from ' + prod.name + '.', () => removeAssemblyFromProduct(pi, ai));
 }
 
-function confirmRemoveTask(asmName, ti) {
+function confirmRemoveTask(asmName, ti, pi) {
   const cat = getCatalog();
-  const task = (cat.tasks[asmName] || [])[ti];
-  showDeleteModal('Delete task?', '"' + task + '" will be permanently deleted.', () => removeTask(asmName, ti));
+  const prodName = pi !== undefined ? ((cat.products[pi] || {}).name || '') : '';
+  const taskKey = prodName ? prodName + '::' + asmName : asmName;
+  const task = (cat.tasks[taskKey] || cat.tasks[asmName] || [])[ti];
+  showDeleteModal('Delete task?', '"' + task + '" will be permanently deleted.', () => removeTask(asmName, ti, pi));
 }
 
 async function renameProduct(pi, newName) {
@@ -1975,13 +1981,16 @@ async function renameAssembly(pi, ai, newName) {
   showToast('✓ Assembly renamed to "' + newName + '"');
 }
 
-async function renameTask(asmName, ti, newName) {
+async function renameTask(asmName, ti, newName, pi) {
   newName = newName.trim();
   const cat = getCatalog();
-  if (!cat.tasks[asmName]) return;
-  const oldName = cat.tasks[asmName][ti];
+  const prodName = pi !== undefined ? ((cat.products[pi] || {}).name || '') : '';
+  const taskKey = prodName ? prodName + '::' + asmName : asmName;
+  const usedKey = cat.tasks[taskKey] ? taskKey : asmName;
+  if (!cat.tasks[usedKey]) return;
+  const oldName = cat.tasks[usedKey][ti];
   if (!newName || newName === oldName) return;
-  cat.tasks[asmName][ti] = newName;
+  cat.tasks[usedKey][ti] = newName;
   saveCatalogAsync(cat);
   showToast('✓ Task renamed.');
 }
@@ -2086,9 +2095,11 @@ async function addTask(asmName, pi, ai) {
   const task = input.value.trim();
   if (!task) { showToast('Enter a task name.'); return; }
   const cat = getCatalog();
-  if (!cat.tasks[asmName]) cat.tasks[asmName] = [];
-  if (cat.tasks[asmName].includes(task)) { showToast('Task already exists.'); return; }
-  cat.tasks[asmName].push(task);
+  const prodName = (cat.products[pi] || {}).name || '';
+  const taskKey = prodName ? prodName + '::' + asmName : asmName;
+  if (!cat.tasks[taskKey]) cat.tasks[taskKey] = [];
+  if (cat.tasks[taskKey].includes(task)) { showToast('Task already exists.'); return; }
+  cat.tasks[taskKey].push(task);
   saveCatalogAsync(cat);
   input.value = '';
   renderCatalogEditor();
@@ -2104,10 +2115,15 @@ async function addTask(asmName, pi, ai) {
   showToast('✓ Task added!');
 }
 
-async function removeTask(asmName, ti) {
+async function removeTask(asmName, ti, pi) {
   const cat = getCatalog();
-  if (!cat.tasks[asmName]) return;
-  cat.tasks[asmName].splice(ti, 1);
+  const prodName = pi !== undefined ? ((cat.products[pi] || {}).name || '') : '';
+  const taskKey = prodName ? prodName + '::' + asmName : asmName;
+  const taskList = cat.tasks[taskKey] || cat.tasks[asmName];
+  if (!taskList) return;
+  // Use the correct key
+  const usedKey = cat.tasks[taskKey] ? taskKey : asmName;
+  cat.tasks[usedKey].splice(ti, 1);
   saveCatalogAsync(cat);
 
   const states = getOpenStates();
@@ -2892,8 +2908,40 @@ function toggleTheme() {
   applyTheme();
 }
 
+
+// ── One-time migration: tasks keys from "Assembly" to "Product::Assembly" ──
+async function migrateTasks() {
+  try {
+    const snap = await db.doc('config/catalog').get();
+    if (!snap.exists) return;
+    const cat = snap.data();
+    if (!cat.tasks || !cat.products || !cat.assemblies) return;
+    if (cat._tasksMigrated) return; // already done
+
+    const newTasks = {};
+    cat.products.forEach(prod => {
+      const asms = cat.assemblies[prod.name] || [];
+      asms.forEach(asm => {
+        const oldKey = asm;
+        const newKey = prod.name + '::' + asm;
+        if (cat.tasks[oldKey] && !cat.tasks[newKey]) {
+          newTasks[newKey] = cat.tasks[oldKey];
+        } else if (cat.tasks[newKey]) {
+          newTasks[newKey] = cat.tasks[newKey];
+        }
+      });
+    });
+
+    await db.doc('config/catalog').set({ ...cat, tasks: newTasks, _tasksMigrated: true });
+    console.log('✓ Tasks migrated to product::assembly format');
+  } catch(e) {
+    console.error('Migration error:', e);
+  }
+}
+
 // Bootstrap: load Firestore data, restore session, apply language
-loadAllFromFirestore().then(() => {
+loadAllFromFirestore().then(async () => {
+  await migrateTasks();
   applyTheme();
   applyLang();
   try {
