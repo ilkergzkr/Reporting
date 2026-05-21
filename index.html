@@ -2576,7 +2576,7 @@ async function saveProfileInfo() {
     await db.doc('users/' + docId).set({ ...existing, username: currentUser.username, name: newName, email: newEmail, isAdmin: currentUser.isAdmin || false });
     setTimeout(() => { _suppressUsersSnapshot = false; }, 2000);
     saveLocalBackup();
-  } catch(e) { _suppressUsersSnapshot = false; console.error('Profile save error:', e); showToast('⚠ Could not save profile.'); return; }
+  } catch(e) { _suppressUsersSnapshot = false; console.error('Profile save error:', e.code, e.message); showToast('⚠ Could not save profile: ' + (e.code || e.message)); return; }
   currentUser.name = newName;
   currentUser.email = newEmail;
 
@@ -3040,10 +3040,10 @@ async function changeUsername() {
     if (!userDoc || userDoc.password !== pass) { err.textContent = 'Incorrect password.'; err.style.display = 'block'; return; }
   }
 
-  // Check new username not taken
+  // Check new username not taken (excluding own current username)
   try {
     const existing = await db.doc('users/' + newU).get();
-    if (existing.exists) { err.textContent = 'Username already taken.'; err.style.display = 'block'; return; }
+    if (existing.exists && newU !== currentUser.username) { err.textContent = 'Username already taken.'; err.style.display = 'block'; return; }
   } catch(e) {}
 
   const btn = document.getElementById('change-username-btn');
