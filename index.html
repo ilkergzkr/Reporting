@@ -834,7 +834,6 @@
       <!-- User Dropdown -->
       <div id="user-dropdown" style="display:none;position:absolute;top:3.5rem;right:1rem;background:var(--surface);border:1px solid var(--border2);border-radius:12px;min-width:160px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.3);overflow:hidden;">
         <div onclick="goTo('page-profile');closeUserDropdown()" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;color:var(--text);transition:background 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">👤 Profile</div>
-        <div onclick="goTo('page-settings');closeUserDropdown()" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;color:var(--text);transition:background 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">⚙️ Settings</div>
         <div style="height:1px;background:var(--border);margin:0.25rem 0;"></div>
         <div onclick="doLogout();closeUserDropdown()" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;color:var(--red);transition:background 0.15s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">🚪 Logout</div>
       </div>
@@ -2572,11 +2571,12 @@ async function saveProfileInfo() {
   try {
     _suppressUsersSnapshot = true;
     const docId = currentUser.isAdmin ? '__admin__' : currentUser.username;
-    const existing = currentUser.isAdmin ? {} : (_users.find(u => u.username === currentUser.username) || {});
+    const existingSnap = await db.doc('users/' + docId).get();
+    const existing = existingSnap.exists ? existingSnap.data() : {};
     await db.doc('users/' + docId).set({ ...existing, username: currentUser.username, name: newName, email: newEmail, isAdmin: currentUser.isAdmin || false });
     setTimeout(() => { _suppressUsersSnapshot = false; }, 2000);
     saveLocalBackup();
-  } catch(e) { _suppressUsersSnapshot = false; showToast('⚠ Could not save profile.'); return; }
+  } catch(e) { _suppressUsersSnapshot = false; console.error('Profile save error:', e); showToast('⚠ Could not save profile.'); return; }
   currentUser.name = newName;
   currentUser.email = newEmail;
 
@@ -3034,8 +3034,10 @@ async function changeUsername() {
 
   // Verify password
   const userDoc = _users.find(u => u.username === currentUser.username);
-  if (!userDoc || userDoc.password !== pass) {
-    err.textContent = 'Incorrect password.'; err.style.display = 'block'; return;
+  if (currentUser.isAdmin) {
+    if (pass !== ADMIN_PASS) { err.textContent = 'Incorrect password.'; err.style.display = 'block'; return; }
+  } else {
+    if (!userDoc || userDoc.password !== pass) { err.textContent = 'Incorrect password.'; err.style.display = 'block'; return; }
   }
 
   // Check new username not taken
