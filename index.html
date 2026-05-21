@@ -1102,6 +1102,21 @@ function doGet(e) {
       <button class="btn-primary" id="profile-save-btn" onclick="saveProfileInfo()">Save Changes</button>
     </div>
 
+    <!-- Change Username -->
+    <div class="settings-section" id="change-username-section">
+      <div class="settings-section-title">Change Username</div>
+      <div class="field">
+        <label>New Username</label>
+        <input type="text" id="new-username-input" placeholder="Enter new username" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Current Password (to confirm)</label>
+        <input type="password" id="username-change-pass" placeholder="Your password">
+      </div>
+      <div id="username-change-error" style="color:var(--red);font-size:0.8rem;display:none;margin-bottom:0.5rem;"></div>
+      <button class="btn-primary" onclick="changeUsername()" id="change-username-btn">Update Username</button>
+    </div>
+
     <!-- Change Password -->
     <div class="settings-section">
       <div class="settings-section-title" id="profile-section-pass">Change Password</div>
@@ -1168,6 +1183,32 @@ const db = firebase.firestore();
 
 
 
+
+// ── localStorage Backup ──
+function saveLocalBackup() {
+  try {
+    localStorage.setItem('sf_backup_users',   JSON.stringify(_users));
+    localStorage.setItem('sf_backup_reports', JSON.stringify(_reports));
+    localStorage.setItem('sf_backup_catalog', JSON.stringify(_catalog));
+    localStorage.setItem('sf_backup_skills',  JSON.stringify(_skills));
+    localStorage.setItem('sf_backup_ts',      Date.now());
+  } catch(e) { console.warn('localStorage backup failed:', e); }
+}
+
+function loadLocalBackup() {
+  try {
+    const users   = localStorage.getItem('sf_backup_users');
+    const reports = localStorage.getItem('sf_backup_reports');
+    const catalog = localStorage.getItem('sf_backup_catalog');
+    const skills  = localStorage.getItem('sf_backup_skills');
+    if (users)   _users   = JSON.parse(users);
+    if (reports) _reports = JSON.parse(reports);
+    if (catalog) _catalog = JSON.parse(catalog);
+    if (skills)  _skills  = JSON.parse(skills);
+    return !!(users || reports || catalog);
+  } catch(e) { return false; }
+}
+
 // ── In-memory cache ──
 let _users = [];
 let _reports = [];
@@ -1177,6 +1218,9 @@ let _scriptUrl = '';
 
 async function loadAllFromFirestore() {
   showLoadingOverlay(true);
+  // Show local backup instantly while Firestore loads
+  const hasLocal = loadLocalBackup();
+  if (hasLocal) { showLoadingOverlay(false); renderProductGrid(); }
   try {
     const [usersSnap, reportsSnap, catSnap, skillsSnap, settingsSnap] = await Promise.all([
       db.collection('users').get(),
@@ -1190,6 +1234,7 @@ async function loadAllFromFirestore() {
     _catalog = catSnap.exists ? catSnap.data() : JSON.parse(JSON.stringify(DEFAULT_CATALOG));
     skillsSnap.docs.forEach(d => { _skills[d.id] = d.data().list || []; });
     _scriptUrl = settingsSnap.exists ? (settingsSnap.data().scriptUrl || '') : '';
+    saveLocalBackup();
     startListeners();
   } catch(e) {
     console.error('Firestore load error:', e);
@@ -1215,10 +1260,12 @@ function startListeners() {
   db.collection('users').onSnapshot(snap => {
     _users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (!_suppressUsersSnapshot) tryRefreshAdmin();
+    saveLocalBackup();
   });
   db.collection('reports').orderBy('timestamp', 'desc').onSnapshot(snap => {
     _reports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     tryRefreshAdmin();
+    saveLocalBackup();
   });
   db.doc('config/catalog').onSnapshot(snap => {
     if (snap.exists) {
@@ -1297,6 +1344,7 @@ async function saveCatalogAsync(cat) {
   _suppressCatalogSnapshot = true;
   await db.doc('config/catalog').set(cat);
   setTimeout(() => { _suppressCatalogSnapshot = false; }, 2000);
+  saveLocalBackup();
 }
 
 async function saveLearnedSkills(username, skills) {
@@ -1366,14 +1414,22 @@ function showLogin() { showScreen('login-screen'); }
 function showRegister() { showScreen('register-screen'); }
 function showManagerLogin() { showScreen('manager-screen'); document.getElementById('mgr-user').value=''; document.getElementById('mgr-pass').value=''; document.getElementById('mgr-error').style.display='none'; }
 
-function doManagerLogin() {
+async function doManagerLogin() {
   const u = document.getElementById('mgr-user').value.trim();
   const p = document.getElementById('mgr-pass').value;
   const err = document.getElementById('mgr-error');
   err.style.display = 'none';
 
   if (u === ADMIN_USER && p === ADMIN_PASS) {
-    currentUser = { username: ADMIN_USER, name: 'Manager', isAdmin: true };
+    // Load saved admin profile from Firestore
+    try {
+      const adminSnap = await db.doc('users/__admin__').get();
+      const savedName = adminSnap.exists ? (adminSnap.data().name || 'Manager') : 'Manager';
+      const savedEmail = adminSnap.exists ? (adminSnap.data().email || '') : '';
+      currentUser = { username: ADMIN_USER, name: savedName, email: savedEmail, isAdmin: true };
+    } catch(e) {
+      currentUser = { username: ADMIN_USER, name: 'Manager', isAdmin: true };
+    }
     enterApp();
   } else {
     err.textContent = 'Invalid manager credentials.';
@@ -1381,13 +1437,20 @@ function doManagerLogin() {
   }
 }
 
-function doLogin() {
+async function doLogin() {
   const u = document.getElementById('login-user').value.trim();
   const p = document.getElementById('login-pass').value;
   document.getElementById('login-error').style.display = 'none';
 
   if (u === ADMIN_USER && p === ADMIN_PASS) {
-    currentUser = { username: ADMIN_USER, name: 'Admin', isAdmin: true };
+    try {
+      const adminSnap = await db.doc('users/__admin__').get();
+      const savedName = adminSnap.exists ? (adminSnap.data().name || 'Manager') : 'Manager';
+      const savedEmail = adminSnap.exists ? (adminSnap.data().email || '') : '';
+      currentUser = { username: ADMIN_USER, name: savedName, email: savedEmail, isAdmin: true };
+    } catch(e) {
+      currentUser = { username: ADMIN_USER, name: 'Manager', isAdmin: true };
+    }
     enterApp();
     return;
   }
@@ -1570,6 +1633,7 @@ async function submitReport() {
       timestamp: new Date().toISOString(),
       sent: sentOk
     });
+    saveLocalBackup();
   } catch(e) {
     console.error('Firestore report save error:', e);
     showToast('⚠ Could not save report. Check connection.');
@@ -2479,6 +2543,16 @@ function renderProfile() {
   // Clear password fields
   ['pass-current','pass-new','pass-confirm'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('pass-error').style.display = 'none';
+  // Hide username change for admin
+  const usernameSection = document.getElementById('change-username-section');
+  if (usernameSection) usernameSection.style.display = currentUser.isAdmin ? 'none' : '';
+  // Reset username fields
+  const newUsernameInput = document.getElementById('new-username-input');
+  if (newUsernameInput) newUsernameInput.value = '';
+  const userPassInput = document.getElementById('username-change-pass');
+  if (userPassInput) userPassInput.value = '';
+  const userErr = document.getElementById('username-change-error');
+  if (userErr) userErr.style.display = 'none';
 }
 
 async function saveProfileInfo() {
@@ -2486,17 +2560,14 @@ async function saveProfileInfo() {
   const newEmail = document.getElementById('profile-edit-email').value.trim();
   if (!newName) { showToast('Name cannot be empty.'); return; }
 
-  if (!currentUser.isAdmin) {
-    try {
-      _suppressUsersSnapshot = true;
-      await db.doc('users/' + currentUser.username).set({
-        ...(_users.find(u => u.username === currentUser.username) || {}),
-        name: newName,
-        email: newEmail
-      });
-      setTimeout(() => { _suppressUsersSnapshot = false; }, 2000);
-    } catch(e) { _suppressUsersSnapshot = false; showToast('⚠ Could not save profile.'); return; }
-  }
+  try {
+    _suppressUsersSnapshot = true;
+    const docId = currentUser.isAdmin ? '__admin__' : currentUser.username;
+    const existing = currentUser.isAdmin ? {} : (_users.find(u => u.username === currentUser.username) || {});
+    await db.doc('users/' + docId).set({ ...existing, username: currentUser.username, name: newName, email: newEmail, isAdmin: currentUser.isAdmin || false });
+    setTimeout(() => { _suppressUsersSnapshot = false; }, 2000);
+    saveLocalBackup();
+  } catch(e) { _suppressUsersSnapshot = false; showToast('⚠ Could not save profile.'); return; }
   currentUser.name = newName;
   currentUser.email = newEmail;
 
@@ -2936,6 +3007,76 @@ async function migrateTasks() {
     console.log('✓ Tasks migrated to product::assembly format');
   } catch(e) {
     console.error('Migration error:', e);
+  }
+}
+
+
+// ── Change Username ──
+async function changeUsername() {
+  const newU = document.getElementById('new-username-input').value.trim();
+  const pass = document.getElementById('username-change-pass').value;
+  const err  = document.getElementById('username-change-error');
+  err.style.display = 'none';
+
+  if (!newU)  { err.textContent = 'Please enter a new username.'; err.style.display = 'block'; return; }
+  if (!pass)  { err.textContent = 'Please enter your password.';  err.style.display = 'block'; return; }
+  if (newU === currentUser.username) { err.textContent = 'New username is the same as current.'; err.style.display = 'block'; return; }
+  if (newU === ADMIN_USER) { err.textContent = 'Username not available.'; err.style.display = 'block'; return; }
+
+  // Verify password
+  const userDoc = _users.find(u => u.username === currentUser.username);
+  if (!userDoc || userDoc.password !== pass) {
+    err.textContent = 'Incorrect password.'; err.style.display = 'block'; return;
+  }
+
+  // Check new username not taken
+  try {
+    const existing = await db.doc('users/' + newU).get();
+    if (existing.exists) { err.textContent = 'Username already taken.'; err.style.display = 'block'; return; }
+  } catch(e) {}
+
+  const btn = document.getElementById('change-username-btn');
+  btn.textContent = 'Updating...'; btn.disabled = true;
+
+  try {
+    const oldU = currentUser.username;
+
+    // 1. Create new user document
+    await db.doc('users/' + newU).set({ ...userDoc, username: newU });
+
+    // 2. Update all reports with old username
+    const reportsSnap = await db.collection('reports').get();
+    const batch = [];
+    reportsSnap.docs.forEach(d => {
+      const data = d.data();
+      if (data.worker === oldU || data.worker === userDoc.name) {
+        batch.push(db.doc('reports/' + d.id).set({ ...data, workerUsername: newU }, { merge: true }));
+      }
+    });
+    await Promise.all(batch);
+
+    // 3. Move skills
+    const skillsSnap = await db.doc('skills/' + oldU).get();
+    if (skillsSnap.exists) {
+      await db.doc('skills/' + newU).set(skillsSnap.data());
+      await db.doc('skills/' + oldU).delete();
+    }
+
+    // 4. Delete old user document
+    await db.doc('users/' + oldU).delete();
+
+    // 5. Update session
+    currentUser.username = newU;
+    localStorage.setItem('sf_session', JSON.stringify(currentUser));
+    saveLocalBackup();
+
+    showToast('✓ Username updated to @' + newU);
+    renderProfile();
+  } catch(e) {
+    console.error('Username change error:', e);
+    err.textContent = 'Something went wrong. Try again.'; err.style.display = 'block';
+  } finally {
+    btn.textContent = 'Update Username'; btn.disabled = false;
   }
 }
 
