@@ -1446,8 +1446,9 @@ async function doManagerLogin() {
     if (adminSnap.exists) adminData = adminSnap.data();
   } catch(e) {}
   const adminUsername = adminData.username || ADMIN_USER;
+  const adminPass = adminData.password || ADMIN_PASS;
 
-  if ((u === ADMIN_USER || u === adminUsername) && p === ADMIN_PASS) {
+  if ((u === ADMIN_USER || u === adminUsername) && p === adminPass) {
     try {
       currentUser = { 
         username: adminData.username || ADMIN_USER, 
@@ -1477,8 +1478,9 @@ async function doLogin() {
     if (adminSnapLogin.exists) adminDataLogin = adminSnapLogin.data();
   } catch(e) {}
   const adminUsernameLogin = adminDataLogin.username || ADMIN_USER;
+  const adminPassLogin = adminDataLogin.password || ADMIN_PASS;
 
-  if ((u === ADMIN_USER || u === adminUsernameLogin) && p === ADMIN_PASS) {
+  if ((u === ADMIN_USER || u === adminUsernameLogin) && p === adminPassLogin) {
     try {
       const adminData = adminDataLogin;
       currentUser = { 
@@ -2649,8 +2651,26 @@ async function changePassword() {
   const err = document.getElementById('pass-error');
   err.style.display = 'none';
 
-  if (currentUser.isAdmin) { err.textContent = 'Manager password must be changed in the source file.'; err.style.display = 'block'; return; }
   if (!cur || !nw || !conf) { err.textContent = 'Please fill all password fields.'; err.style.display = 'block'; return; }
+
+  if (currentUser.isAdmin) {
+    // Admin password stored in Firestore
+    const adminSnap = await db.doc('users/admin_profile').get();
+    const savedPass = adminSnap.exists ? (adminSnap.data().password || ADMIN_PASS) : ADMIN_PASS;
+    if (cur !== savedPass) { err.textContent = 'Current password is incorrect.'; err.style.display = 'block'; return; }
+    if (nw.length < 4) { err.textContent = 'New password must be at least 4 characters.'; err.style.display = 'block'; return; }
+    if (nw !== conf) { err.textContent = 'New passwords do not match.'; err.style.display = 'block'; return; }
+    try {
+      const adminData = adminSnap.exists ? adminSnap.data() : {};
+      await db.doc('users/admin_profile').set({ ...adminData, password: nw });
+      localStorage.setItem('sf_session', JSON.stringify(currentUser));
+      showToast('✓ Password updated!');
+      document.getElementById('pass-current').value = '';
+      document.getElementById('pass-new').value = '';
+      document.getElementById('pass-confirm').value = '';
+    } catch(e) { err.textContent = 'Could not update password.'; err.style.display = 'block'; }
+    return;
+  }
 
   const users = getUsers();
   const idx = users.findIndex(x => x.username === currentUser.username);
@@ -3090,7 +3110,10 @@ async function changeUsername() {
   // Verify password
   const userDoc = _users.find(u => u.username === currentUser.username);
   if (currentUser.isAdmin) {
-    if (pass !== ADMIN_PASS) { err.textContent = 'Incorrect password.'; err.style.display = 'block'; return; }
+    // Check Firestore password or fallback to hardcoded
+    let adminPassForCheck = ADMIN_PASS;
+    try { const s = await db.doc('users/admin_profile').get(); if(s.exists && s.data().password) adminPassForCheck = s.data().password; } catch(e) {}
+    if (pass !== adminPassForCheck) { err.textContent = 'Incorrect password.'; err.style.display = 'block'; return; }
   } else {
     if (!userDoc || userDoc.password !== pass) { err.textContent = 'Incorrect password.'; err.style.display = 'block'; return; }
   }
