@@ -3190,6 +3190,19 @@ loadAllFromFirestore().then(async () => {
     const saved = localStorage.getItem('sf_session');
     if (saved) {
       currentUser = JSON.parse(saved);
+      // If admin, always reload fresh profile from Firestore
+      if (currentUser.isAdmin) {
+        try {
+          const adminSnap = await db.doc('users/admin_profile').get();
+          if (adminSnap.exists) {
+            const adminData = adminSnap.data();
+            currentUser.username = adminData.username || currentUser.username;
+            currentUser.name = adminData.name || currentUser.name;
+            currentUser.email = adminData.email || currentUser.email;
+            localStorage.setItem('sf_session', JSON.stringify(currentUser));
+          }
+        } catch(e) {}
+      }
       enterApp();
     }
   } catch(e) {}
