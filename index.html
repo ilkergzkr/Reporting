@@ -1439,11 +1439,16 @@ async function doManagerLogin() {
   const err = document.getElementById('mgr-error');
   err.style.display = 'none';
 
-  if (u === ADMIN_USER && p === ADMIN_PASS) {
-    // Load saved admin profile from Firestore
+  // Load admin profile to check custom username
+  let adminData = {};
+  try {
+    const adminSnap = await db.doc('users/admin_profile').get();
+    if (adminSnap.exists) adminData = adminSnap.data();
+  } catch(e) {}
+  const adminUsername = adminData.username || ADMIN_USER;
+
+  if ((u === ADMIN_USER || u === adminUsername) && p === ADMIN_PASS) {
     try {
-      const adminSnap = await db.doc('users/admin_profile').get();
-      const adminData = adminSnap.exists ? adminSnap.data() : {};
       currentUser = { 
         username: adminData.username || ADMIN_USER, 
         name: adminData.name || 'Manager', 
