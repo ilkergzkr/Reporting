@@ -1431,7 +1431,7 @@ async function doManagerLogin() {
   if (u === ADMIN_USER && p === ADMIN_PASS) {
     // Load saved admin profile from Firestore
     try {
-      const adminSnap = await db.doc('users/__admin__').get();
+      const adminSnap = await db.doc('users/admin_profile').get();
       const savedName = adminSnap.exists ? (adminSnap.data().name || 'Manager') : 'Manager';
       const savedEmail = adminSnap.exists ? (adminSnap.data().email || '') : '';
       currentUser = { username: ADMIN_USER, name: savedName, email: savedEmail, isAdmin: true };
@@ -1452,7 +1452,7 @@ async function doLogin() {
 
   if (u === ADMIN_USER && p === ADMIN_PASS) {
     try {
-      const adminSnap = await db.doc('users/__admin__').get();
+      const adminSnap = await db.doc('users/admin_profile').get();
       const savedName = adminSnap.exists ? (adminSnap.data().name || 'Manager') : 'Manager';
       const savedEmail = adminSnap.exists ? (adminSnap.data().email || '') : '';
       currentUser = { username: ADMIN_USER, name: savedName, email: savedEmail, isAdmin: true };
@@ -2570,7 +2570,7 @@ async function saveProfileInfo() {
 
   try {
     _suppressUsersSnapshot = true;
-    const docId = currentUser.isAdmin ? '__admin__' : currentUser.username;
+    const docId = currentUser.isAdmin ? 'admin_profile' : currentUser.username;
     const existingSnap = await db.doc('users/' + docId).get();
     const existing = existingSnap.exists ? existingSnap.data() : {};
     await db.doc('users/' + docId).set({ ...existing, username: currentUser.username, name: newName, email: newEmail, isAdmin: currentUser.isAdmin || false });
