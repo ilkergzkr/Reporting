@@ -1470,10 +1470,17 @@ async function doLogin() {
   const p = document.getElementById('login-pass').value;
   document.getElementById('login-error').style.display = 'none';
 
-  if (u === ADMIN_USER && p === ADMIN_PASS) {
+  // Load admin profile to check custom username
+  let adminDataLogin = {};
+  try {
+    const adminSnapLogin = await db.doc('users/admin_profile').get();
+    if (adminSnapLogin.exists) adminDataLogin = adminSnapLogin.data();
+  } catch(e) {}
+  const adminUsernameLogin = adminDataLogin.username || ADMIN_USER;
+
+  if ((u === ADMIN_USER || u === adminUsernameLogin) && p === ADMIN_PASS) {
     try {
-      const adminSnap = await db.doc('users/admin_profile').get();
-      const adminData = adminSnap.exists ? adminSnap.data() : {};
+      const adminData = adminDataLogin;
       currentUser = { 
         username: adminData.username || ADMIN_USER, 
         name: adminData.name || 'Manager', 
@@ -1506,7 +1513,7 @@ async function doRegister() {
   err.style.display = 'none';
 
   if (!name || !u || !p) { err.textContent = 'Please fill all fields.'; err.style.display = 'block'; return; }
-  if (u === ADMIN_USER) { err.textContent = 'Username not available.'; err.style.display = 'block'; return; }
+  if (u === ADMIN_USER || u === ((_users.find(x => x.isAdmin) || {}).username || '')) { err.textContent = 'Username not available.'; err.style.display = 'block'; return; }
 
   // Check Firestore directly to avoid race conditions
   try {
