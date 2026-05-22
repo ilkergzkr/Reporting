@@ -359,6 +359,17 @@
     cursor: pointer; transition: background 0.15s; margin-bottom: 0.35rem;
   }
   .skill-check-item:hover { background: var(--surface2); }
+  .skill-already-learned {
+    opacity: 0.7; cursor: not-allowed;
+    background: rgba(16,185,129,0.06);
+    border: 1px solid rgba(16,185,129,0.2);
+  }
+  .skill-already-learned:hover { background: rgba(16,185,129,0.1); }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
   .skill-check-item input[type=checkbox] { display:none; }
   .skill-checkbox-box {
     width: 18px; height: 18px; border-radius: 5px;
@@ -946,7 +957,7 @@
     <textarea class="notes-area" id="report-notes" placeholder="Any additional notes, issues, or observations..."></textarea>
 
     <div class="submit-row">
-      <button class="btn-submit" id="submit-btn" onclick="submitReport()">Upload Report →</button>
+      <button class="btn-submit" id="submit-btn">Upload Report →</button>
     </div>
     <p id="submit-status" style="text-align:center; font-size:0.8rem; color:var(--muted); margin-top:0.5rem; display:none;"></p>
   </div>
@@ -1432,9 +1443,13 @@ async function doManagerLogin() {
     // Load saved admin profile from Firestore
     try {
       const adminSnap = await db.doc('users/admin_profile').get();
-      const savedName = adminSnap.exists ? (adminSnap.data().name || 'Manager') : 'Manager';
-      const savedEmail = adminSnap.exists ? (adminSnap.data().email || '') : '';
-      currentUser = { username: ADMIN_USER, name: savedName, email: savedEmail, isAdmin: true };
+      const adminData = adminSnap.exists ? adminSnap.data() : {};
+      currentUser = { 
+        username: adminData.username || ADMIN_USER, 
+        name: adminData.name || 'Manager', 
+        email: adminData.email || '', 
+        isAdmin: true 
+      };
     } catch(e) {
       currentUser = { username: ADMIN_USER, name: 'Manager', isAdmin: true };
     }
@@ -1453,9 +1468,13 @@ async function doLogin() {
   if (u === ADMIN_USER && p === ADMIN_PASS) {
     try {
       const adminSnap = await db.doc('users/admin_profile').get();
-      const savedName = adminSnap.exists ? (adminSnap.data().name || 'Manager') : 'Manager';
-      const savedEmail = adminSnap.exists ? (adminSnap.data().email || '') : '';
-      currentUser = { username: ADMIN_USER, name: savedName, email: savedEmail, isAdmin: true };
+      const adminData = adminSnap.exists ? adminSnap.data() : {};
+      currentUser = { 
+        username: adminData.username || ADMIN_USER, 
+        name: adminData.name || 'Manager', 
+        email: adminData.email || '', 
+        isAdmin: true 
+      };
     } catch(e) {
       currentUser = { username: ADMIN_USER, name: 'Manager', isAdmin: true };
     }
@@ -1493,6 +1512,7 @@ async function doRegister() {
   try {
     const userData = { username: u, name, email: email || '', password: p };
     await db.doc('users/' + u).set(userData);
+    saveLocalBackup();
     showToast('Account created! Please sign in.');
     showLogin();
   } catch(e) {
@@ -1580,18 +1600,23 @@ function selectAssembly(name) {
     </tr>`
   ).join('');
 
-  // Show learned skills section only for Head Assembly
+  // Show learned skills section for ALL assemblies that have tasks
   const skillsSection = document.getElementById('learned-skills-section');
-  if (name === 'Head Assembly') {
+  const asmTasks = getTasksFor(name, selectedProduct);
+  const userSkills = getLearnedSkills(currentUser.username);
+
+  if (asmTasks.length > 0) {
     skillsSection.style.display = 'block';
-    const headTasks = getTasksFor('Head Assembly', selectedProduct);
-    const userSkills = getLearnedSkills(currentUser.username);
-    document.getElementById('skills-checkboxes').innerHTML = headTasks.map(t => `
-      <div class="skill-check-item ${userSkills.includes(t) ? 'checked' : ''}" onclick="toggleSkill(this, '${t.replace(/'/g,"\\'")}')">
-        <div class="skill-checkbox-box"><span class="skill-checkbox-check">✓</span></div>
-        <span class="skill-check-label">${t}</span>
-      </div>
-    `).join('');
+    document.getElementById('skills-checkboxes').innerHTML = asmTasks.map(t => {
+      const skillKey = selectedProduct + '::' + name + '::' + t;
+      const alreadyLearned = userSkills.includes(skillKey);
+      const safeKey = skillKey.replace(/'/g, "\\'");
+      const masteredBadge = alreadyLearned ? ' <span style="font-size:0.7rem;color:var(--green);margin-left:0.3rem;">✓ Mastered</span>' : '';
+      return '<div class="skill-check-item ' + (alreadyLearned ? 'checked skill-already-learned' : '') + '" onclick="toggleSkill(this,\'' + safeKey + '\',' + alreadyLearned + ')">'
+        + '<div class="skill-checkbox-box"><span class="skill-checkbox-check">✓</span></div>'
+        + '<span class="skill-check-label">' + t + masteredBadge + '</span>'
+        + '</div>';
+    }).join('');
   } else {
     skillsSection.style.display = 'none';
   }
@@ -2227,7 +2252,14 @@ function renderAdmin() {
 }
 
 // getLearnedSkills and saveLearnedSkills replaced by Firebase versions above
-async function toggleSkill(el, taskName) {
+async function toggleSkill(el, taskName, alreadyLearned) {
+  if (alreadyLearned) {
+    // Show warning - already mastered
+    el.style.animation = 'shake 0.3s ease';
+    setTimeout(() => el.style.animation = '', 300);
+    showToast('✓ You already mastered this skill!');
+    return;
+  }
   el.classList.toggle('checked');
   const skills = getLearnedSkills(currentUser.username);
   if (el.classList.contains('checked')) {
@@ -2236,7 +2268,7 @@ async function toggleSkill(el, taskName) {
     const idx = skills.indexOf(taskName);
     if (idx > -1) skills.splice(idx, 1);
   }
-  saveLearnedSkills(currentUser.username, skills);
+  await saveLearnedSkills(currentUser.username, skills);
 }
 
 // ── Backdate ──
@@ -2419,8 +2451,17 @@ function renderWorkerProgress() {
   const users = getUsers();
   const reports = getReports();
   const container = document.getElementById('workers-list');
-  const headTasks = getTasksFor('Head Assembly');
-  const totalHeadTasks = headTasks.length || 1;
+  // Count ALL tasks across all products/assemblies
+  const cat = getCatalog();
+  let totalAllTasks = 0;
+  cat.products.forEach(prod => {
+    const asms = cat.assemblies[prod.name] || [];
+    asms.forEach(asm => {
+      const key = prod.name + '::' + asm;
+      totalAllTasks += (cat.tasks[key] || cat.tasks[asm] || []).length;
+    });
+  });
+  const totalHeadTasks = totalAllTasks || 1;
 
   if (users.length === 0) {
     container.innerHTML = `<div class="empty-state">${T('noWorkers')}</div>`;
@@ -2432,15 +2473,16 @@ function renderWorkerProgress() {
     const userReports = reports.filter(r => r.worker === workerName);
     const total = userReports.length;
     const sent = userReports.filter(r => r.sent).length;
-    const initials = workerName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
+    const avatarUrl = getAvatarUrlForUser(u);
     const learnedSkills = getLearnedSkills(u.username);
-    const masteredCount = learnedSkills.length;
+    // Count only skills in new format (product::assembly::task)
+    const masteredCount = learnedSkills.filter(s => s.includes('::')).length || learnedSkills.length;
     const masteryPct = Math.round((masteredCount / totalHeadTasks) * 100);
 
     return `
     <div class="worker-card">
       <div class="worker-header">
-        <div class="worker-avatar">${initials}</div>
+        <div class="worker-avatar" style="background:none;overflow:hidden;padding:0;"><img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" /></div>
         <div class="worker-info">
           <div class="worker-name">${workerName}</div>
           <div class="worker-role">@${u.username}</div>
@@ -2607,6 +2649,7 @@ async function changePassword() {
 
   try {
     await db.doc('users/' + currentUser.username).set({ ...users[idx], password: nw });
+    saveLocalBackup();
   } catch(e) { err.textContent = 'Could not update password.'; err.style.display = 'block'; return; }
   currentUser.password = nw;
   ['pass-current','pass-new','pass-confirm'].forEach(id => document.getElementById(id).value = '');
@@ -2867,7 +2910,7 @@ function renderUsers() {
   container.innerHTML = summaryHtml + cards;
 }
 
-function deleteUser(username) {
+async function deleteUser(username) {
   showDeleteModal(
     currentLang === 'fr' ? 'Retirer cet utilisateur ?' : 'Remove user?',
     '"' + username + '" ' + (currentLang === 'fr' ? 'sera retiré. Ses rapports restent dans le système.' : 'will be removed. Their reports stay in the system.'),
@@ -3052,29 +3095,36 @@ async function changeUsername() {
   try {
     const oldU = currentUser.username;
 
-    // 1. Create new user document
-    await db.doc('users/' + newU).set({ ...userDoc, username: newU });
+    if (currentUser.isAdmin) {
+      // Admin: just update admin_profile doc, don't touch users collection
+      const adminSnap = await db.doc('users/admin_profile').get();
+      const adminData = adminSnap.exists ? adminSnap.data() : {};
+      await db.doc('users/admin_profile').set({ ...adminData, username: newU });
+    } else {
+      // 1. Create new user document
+      await db.doc('users/' + newU).set({ ...userDoc, username: newU });
 
-    // 2. Update all reports with old username
-    const reportsSnap = await db.collection('reports').get();
-    const batch = [];
-    reportsSnap.docs.forEach(d => {
-      const data = d.data();
-      if (data.worker === oldU || data.worker === userDoc.name) {
-        batch.push(db.doc('reports/' + d.id).set({ ...data, workerUsername: newU }, { merge: true }));
+      // 2. Update all reports with old username
+      const reportsSnap = await db.collection('reports').get();
+      const batch = [];
+      reportsSnap.docs.forEach(d => {
+        const data = d.data();
+        if (data.worker === oldU || data.worker === userDoc.name) {
+          batch.push(db.doc('reports/' + d.id).set({ ...data, workerUsername: newU }, { merge: true }));
+        }
+      });
+      await Promise.all(batch);
+
+      // 3. Move skills
+      const skillsSnap = await db.doc('skills/' + oldU).get();
+      if (skillsSnap.exists) {
+        await db.doc('skills/' + newU).set(skillsSnap.data());
+        await db.doc('skills/' + oldU).delete();
       }
-    });
-    await Promise.all(batch);
 
-    // 3. Move skills
-    const skillsSnap = await db.doc('skills/' + oldU).get();
-    if (skillsSnap.exists) {
-      await db.doc('skills/' + newU).set(skillsSnap.data());
-      await db.doc('skills/' + oldU).delete();
+      // 4. Delete old user document
+      await db.doc('users/' + oldU).delete();
     }
-
-    // 4. Delete old user document
-    await db.doc('users/' + oldU).delete();
 
     // 5. Update session
     currentUser.username = newU;
@@ -3110,6 +3160,24 @@ document.addEventListener('click', function(e) {
   const trigger = document.getElementById('user-display');
   if (dd && trigger && !dd.contains(e.target) && !trigger.contains(e.target)) {
     dd.style.display = 'none';
+  }
+});
+
+
+// ── Submit button reliable click handler ──
+document.addEventListener('DOMContentLoaded', function() {
+  const submitBtn = document.getElementById('submit-btn');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      submitReport();
+    });
+    // Also handle touch
+    submitBtn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      submitReport();
+    });
   }
 });
 
