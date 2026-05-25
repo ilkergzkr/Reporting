@@ -400,7 +400,13 @@
   .skill-seg.mastered { color: #a78bfa; font-weight: 700; }
 
   /* WEEKLY TABLE */
-  .weekly-worker-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
+  .weekly-worker-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0; margin-bottom: 1rem; overflow: hidden; }
+  .weekly-worker-header { display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.25rem; cursor: pointer; user-select: none; transition: background 0.15s; }
+  .weekly-worker-header:hover { background: var(--surface2); }
+  .weekly-worker-chevron { margin-left: auto; font-size: 0.75rem; color: var(--muted); transition: transform 0.2s; }
+  .weekly-worker-block.open .weekly-worker-chevron { transform: rotate(180deg); }
+  .weekly-worker-body { display: none; padding: 0 1.25rem 1.25rem; border-top: 1px solid var(--border); }
+  .weekly-worker-block.open .weekly-worker-body { display: block; }
   .weekly-worker-name { font-size: 0.95rem; font-weight: 800; margin-bottom: 1rem; display:flex; align-items:center; gap:0.6rem; }
   .weekly-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
   .weekly-table th { 
@@ -748,7 +754,7 @@
     <div class="field">
       <label id="lbl-login-pass">Password</label>
       <div class="pass-wrap">
-        <input type="password" id="login-pass" placeholder="Enter password" autocomplete="current-password">
+        <input type="password" id="login-pass" placeholder="Enter password" autocomplete="off">
         <button class="btn-eye" type="button" onclick="togglePass('login-pass',this)" tabindex="-1">👁</button>
       </div>
     </div>
@@ -2448,12 +2454,26 @@ function renderWeeklyOutput(offset) {
     const userWeekReports = weekReportsAll.filter(r => r.worker === workerName);
     if (userWeekReports.length === 0) return; // skip workers with no activity this week
 
+    // Count total qty for this worker this week (for header summary)
+    const workerWeekTotal = userWeekReports.reduce((s,r) => s + (r.tasks||[]).reduce((ts,t) => ts+(parseInt(t.qty)||0),0), 0);
+    const workerCombos    = [...new Set(userWeekReports.map(r => r.product))].join(', ');
+    const blockId = 'wwb-' + (u.username || workerName).replace(/\s/g,'_');
+
     html += `
-    <div class="weekly-worker-block">
-      <div class="weekly-worker-name">
-        <div class="worker-avatar" style="width:30px;height:30px;font-size:12px;">${initials}</div>
-        ${workerName}
-      </div>`;
+    <div class="weekly-worker-block" id="${blockId}">
+      <div class="weekly-worker-header" onclick="toggleWeeklyBlock('${blockId}')">
+        <div class="worker-avatar" style="width:32px;height:32px;font-size:12px;flex-shrink:0;">${initials}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:0.9rem;">${workerName}</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:1px;">${workerCombos}</div>
+        </div>
+        <div style="text-align:right;margin-right:0.75rem;">
+          <div style="font-family:'DM Mono';font-weight:700;font-size:1rem;color:var(--accent);">${workerWeekTotal}</div>
+          <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;">units</div>
+        </div>
+        <span class="weekly-worker-chevron">▼</span>
+      </div>
+      <div class="weekly-worker-body">`;
 
     activeCombos.forEach(({ product, assembly, tasks }) => {
       const comboReports = userWeekReports.filter(r => r.product === product && r.assembly === assembly);
@@ -2519,11 +2539,16 @@ function renderWeeklyOutput(offset) {
       </div>`;
     });
 
-    html += `</div>`;
+    html += `</div></div>`; // close weekly-worker-body + weekly-worker-block
   });
 
   container.innerHTML = html;
 }
+function toggleWeeklyBlock(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
 function renderWorkerProgress() {
   const users     = getUsers().filter(u => !u.isAdmin);
   const reports   = getReports();
