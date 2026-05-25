@@ -1011,50 +1011,70 @@
         </div>
         <div class="step">
           <div class="step-num">2</div>
-          <div class="step-text">Go to <strong>Extensions → Apps Script</strong> and paste the script below into the editor.</div>
+          <div class="step-text">Go to <strong>Extensions → Apps Script</strong>, delete any existing code, and paste the script below into the editor. Save it (Ctrl+S).</div>
         </div>
         <div class="step">
           <div class="step-num">3</div>
-          <div class="step-text">Click <strong>Deploy → New deployment</strong>. Choose type: <code>Web App</code>. Set "Who has access" to <code>Anyone</code>. Copy the deployment URL.</div>
+          <div class="step-text">Click <strong>Deploy → New deployment</strong>. Choose type: <code>Web App</code>. Set <strong>Execute as: Me</strong> and <strong>Who has access: Anyone</strong>. Click Deploy and authorize when prompted. Copy the deployment URL.</div>
         </div>
         <div class="step">
           <div class="step-num">4</div>
-          <div class="step-text">Paste the URL above in the field and click <strong>Save URL</strong>.</div>
+          <div class="step-text">Paste the URL in the field above and click <strong>Save URL</strong>. Then test it by opening the URL directly in your browser — you should see <code>{"status":"ok"}</code>.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-text">⚠️ If you update the script later, you must <strong>create a new deployment</strong> (not edit existing) and save the new URL here.</div>
         </div>
         <div style="background:var(--surface2); border-radius:8px; padding:1rem; margin-top:1rem;">
           <div style="font-size:10px; font-weight:700; letter-spacing:0.1em; color:var(--accent); text-transform:uppercase; margin-bottom:0.75rem;">Apps Script Code</div>
-          <pre style="font-family:'DM Mono'; font-size:0.72rem; color:var(--muted); white-space:pre-wrap; line-height:1.6;">function doPost(e) {
+          <pre style="font-family:'DM Mono'; font-size:0.72rem; color:var(--muted); white-space:pre-wrap; line-height:1.6;">// doGet handles the request (avoids CORS preflight issues)
+function doGet(e) {
   try {
-    var sheet = SpreadsheetApp
-      .getActiveSpreadsheet()
-      .getActiveSheet();
-
-    // Body comes as plain text (no-cors mode from browser)
-    var raw = (e.postData && e.postData.contents) ? e.postData.contents : '{}';
+    var raw = e.parameter && e.parameter.data ? e.parameter.data : '{}';
     var data = JSON.parse(raw);
 
-    // Add header row if sheet is empty
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow([
-        'Timestamp','Date','Worker',
-        'Product','Assembly','Task',
-        'QTY','Notes'
-      ]);
+    // Health-check ping (no data field sent)
+    if (!data.date && !data.worker) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', message: 'Shop Floor Script is live!' }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Write each task as its own row
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // ── Tab 1: Raw Rows ──
+    var rawSheet = ss.getSheetByName('Raw Reports') || ss.insertSheet('Raw Reports');
+    if (rawSheet.getLastRow() === 0) {
+      rawSheet.appendRow(['Timestamp','Date','Worker','Product','Assembly','Task','QTY','Notes']);
+    }
     (data.tasks || []).forEach(function(task) {
-      sheet.appendRow([
+      rawSheet.appendRow([
         new Date().toISOString(),
-        data.date   || '',
-        data.worker || '',
+        data.date     || '',
+        data.worker   || '',
         data.product  || '',
         data.assembly || '',
-        task.name || '',
-        task.qty  || 0,
-        data.notes || ''
+        task.name     || '',
+        task.qty      || 0,
+        data.notes    || ''
       ]);
     });
+
+    // ── Tab 2: Weekly Summary (pivot by worker + date) ──
+    var summarySheet = ss.getSheetByName('Weekly Summary') || ss.insertSheet('Weekly Summary');
+    if (summarySheet.getLastRow() === 0) {
+      summarySheet.appendRow(['Date','Worker','Product','Assembly','Total QTY','Notes','Submitted At']);
+    }
+    var totalQty = (data.tasks || []).reduce(function(s, t) { return s + (parseInt(t.qty) || 0); }, 0);
+    summarySheet.appendRow([
+      data.date     || '',
+      data.worker   || '',
+      data.product  || '',
+      data.assembly || '',
+      totalQty,
+      data.notes    || '',
+      new Date().toISOString()
+    ]);
 
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'ok' }))
@@ -1065,13 +1085,6 @@
       .createTextOutput(JSON.stringify({ status: 'error', message: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
-}
-
-// GET handler for quick health-check (visit the URL in browser to verify)
-function doGet(e) {
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: 'ok', message: 'Shop Floor Script is live!' }))
-    .setMimeType(ContentService.MimeType.JSON);
 }</pre>
         </div>
       </div>
@@ -1663,14 +1676,15 @@ async function submitReport() {
 
   if (scriptUrl) {
     try {
-      await fetch(scriptUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        body: JSON.stringify(payload)
-      });
-      sentOk = true;
+      // Use GET + query param to avoid CORS/no-cors issues with Apps Script
+      const encoded = encodeURIComponent(JSON.stringify(payload));
+      const url = scriptUrl + '?data=' + encoded;
+      const resp = await fetch(url, { method: 'GET', mode: 'cors' });
+      const json = await resp.json();
+      sentOk = json && json.status === 'ok';
     } catch(e) {
       console.log('Sheets send failed:', e);
+      sentOk = false;
     }
   }
 
@@ -2563,6 +2577,8 @@ function switchTab(id) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   event.target.classList.add('active');
+  if (id === 'tab-progress') renderWorkerProgress();
+  if (id === 'tab-weekly') renderWeeklyOutput(currentWeekOffset);
   if (id === 'tab-users') renderUsers();
   if (id === 'tab-catalog') renderCatalogEditor();
 }
@@ -2572,9 +2588,23 @@ async function saveScriptUrl() {
   _scriptUrl = url;
   try {
     await db.doc('config/settings').set({ scriptUrl: url });
-    showToast('Script URL saved!');
+    showToast('✓ URL saved! Testing connection...');
   } catch(e) {
     showToast('⚠ Could not save URL.');
+    return;
+  }
+  // Health-check ping
+  try {
+    const resp = await fetch(url, { method: 'GET', mode: 'cors' });
+    const json = await resp.json();
+    if (json && json.status === 'ok') {
+      showToast('✅ Connected to Google Sheets!');
+    } else {
+      showToast('⚠ Script responded but returned an error.');
+    }
+  } catch(e) {
+    showToast('⚠ URL saved but connection test failed. Check deploy settings.');
+    console.log('Sheets ping error:', e);
   }
 }
 
