@@ -324,6 +324,24 @@
   .badge.pending { background: rgba(245,158,11,0.2); color: #fcd34d; }
   .btn-delete-report { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 6px; transition: background 0.15s, color 0.15s; line-height:1; }
   .btn-delete-report:hover { background: rgba(239,68,68,0.15); color: #f87171; }
+  /* Skill detail modal */
+  #skill-detail-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:99999; align-items:flex-start; justify-content:center; overflow-y:auto; padding:2rem 1rem; }
+  #skill-detail-modal.active { display:flex; }
+  .skill-modal-box { background:var(--surface); border:1px solid var(--border2); border-radius:16px; padding:1.75rem; width:100%; max-width:480px; margin:auto; }
+  .skill-modal-box h3 { font-family:'Syne'; font-size:1.1rem; margin-bottom:0.25rem; }
+  .skill-modal-close { float:right; background:none; border:none; color:var(--muted); font-size:1.3rem; cursor:pointer; line-height:1; margin-top:-4px; }
+  .skill-modal-close:hover { color:var(--text); }
+  .skill-product-group { margin-bottom:1.25rem; }
+  .skill-product-label { font-size:10px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:var(--accent); margin-bottom:0.5rem; padding-bottom:0.35rem; border-bottom:1px solid var(--border); }
+  .skill-asm-label { font-size:0.75rem; font-weight:600; color:var(--muted); margin:0.5rem 0 0.3rem; }
+  .skill-task-row { display:flex; align-items:center; gap:0.6rem; padding:0.3rem 0; }
+  .skill-task-dot { width:18px; height:18px; border-radius:5px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; }
+  .skill-task-dot.done { background:rgba(124,58,237,0.3); color:#a78bfa; border:1px solid rgba(124,58,237,0.5); }
+  .skill-task-dot.todo { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+  .skill-task-name { font-size:0.8rem; }
+  .skill-task-name.done { color:#c4b5fd; font-weight:600; }
+  .skill-task-name.todo { color:var(--muted); }
+
   /* Delete confirm modal */
   #delete-report-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center; }
   #delete-report-modal.active { display:flex; }
@@ -2545,6 +2563,19 @@ function renderWeeklyOutput(offset) {
           </tbody>
         </table>
         </div>
+        ${(() => {
+          // Collect notes for this combo from this user this week
+          const notesRows = comboReports
+            .filter(r => r.notes && r.notes.trim())
+            .map(r => `<div style="display:flex;gap:0.5rem;align-items:flex-start;padding:0.35rem 0;border-top:1px solid var(--border);">
+              <span style="font-family:'DM Mono';font-size:0.7rem;color:var(--muted);flex-shrink:0;padding-top:1px;">${r.date}</span>
+              <span style="font-size:0.78rem;color:var(--text);line-height:1.5;">${r.notes}</span>
+            </div>`).join('');
+          return notesRows ? `<div style="margin-top:0.6rem;padding:0.5rem 0.25rem;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem;">Notes</div>
+            ${notesRows}
+          </div>` : '';
+        })()}
       </div>`;
     });
 
@@ -2639,8 +2670,11 @@ function renderWorkerProgress() {
 
       ${productRows ? `<div style="margin-top:0.75rem;">${productRows}</div>` : ''}
 
-      <div class="skill-bar-section" style="margin-top:0.75rem;">
-        <div class="skill-bar-title">Skill Mastery · ${masteredCount}/${totalAllTasks} · ${masteryPct}%</div>
+      <div class="skill-bar-section" style="margin-top:0.75rem;cursor:pointer;" onclick="openSkillModal('${u.username}','${workerName.replace(/'/g,\"\\'\")}')">
+        <div class="skill-bar-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Skill Mastery · ${masteredCount}/${totalAllTasks} · ${masteryPct}%</span>
+          <span style="font-size:0.7rem;color:var(--accent);font-weight:600;">View details ›</span>
+        </div>
         <div class="skill-master-bar-wrap">
           <div class="skill-master-bar-fill" style="width:${masteryPct}%"></div>
           <span class="skill-master-pct">${masteryPct}%</span>
@@ -2681,6 +2715,66 @@ function renderReportsList() {
       </div>
     </div>`;
   }).join('');
+}
+
+function openSkillModal(username, workerName) {
+  const cat = getCatalog();
+  const learned = getLearnedSkills(username);
+  const learnedSet = new Set(learned);
+
+  // Count totals
+  let totalTasks = 0, masteredTasks = 0;
+  cat.products.forEach(prod => {
+    const asms = cat.assemblies[prod.name] || [];
+    asms.forEach(asm => {
+      const key = prod.name + '::' + asm;
+      const tasks = cat.tasks[key] || cat.tasks[asm] || [];
+      tasks.forEach(t => {
+        totalTasks++;
+        if (learnedSet.has(prod.name + '::' + asm + '::' + t)) masteredTasks++;
+      });
+    });
+  });
+  const pct = totalTasks > 0 ? Math.round(masteredTasks / totalTasks * 100) : 0;
+
+  document.getElementById('skill-modal-title').textContent = workerName + ' — Skills';
+  document.getElementById('skill-modal-sub').textContent = masteredTasks + ' of ' + totalTasks + ' tasks mastered (' + pct + '%)';
+
+  let html = '';
+  cat.products.forEach(prod => {
+    const asms = cat.assemblies[prod.name] || [];
+    if (!asms.length) return;
+
+    let prodHtml = '';
+    asms.forEach(asm => {
+      const key = prod.name + '::' + asm;
+      const tasks = cat.tasks[key] || cat.tasks[asm] || [];
+      if (!tasks.length) return;
+
+      const taskRows = tasks.map(t => {
+        const skillKey = prod.name + '::' + asm + '::' + t;
+        const done = learnedSet.has(skillKey);
+        return `<div class="skill-task-row">
+          <div class="skill-task-dot ${done?'done':'todo'}">${done?'✓':'·'}</div>
+          <span class="skill-task-name ${done?'done':'todo'}">${t}</span>
+        </div>`;
+      }).join('');
+
+      prodHtml += `<div class="skill-asm-label">${asm}</div>${taskRows}`;
+    });
+
+    if (prodHtml) {
+      html += `<div class="skill-product-group">
+        <div class="skill-product-label">${prod.name}</div>
+        ${prodHtml}
+      </div>`;
+    }
+  });
+
+  if (!html) html = '<p style="color:var(--muted);font-size:0.82rem;">No skills in catalog yet.</p>';
+
+  document.getElementById('skill-modal-body').innerHTML = html;
+  document.getElementById('skill-detail-modal').classList.add('active');
 }
 
 let _pendingDeleteId = null;
@@ -3434,6 +3528,16 @@ loadAllFromFirestore().then(async () => {
     </div>
   </div>
 </div>
+<!-- Skill Detail Modal -->
+<div id="skill-detail-modal">
+  <div class="skill-modal-box">
+    <button class="skill-modal-close" onclick="document.getElementById('skill-detail-modal').classList.remove('active')">✕</button>
+    <h3 id="skill-modal-title">Skill Mastery</h3>
+    <p id="skill-modal-sub" style="font-size:0.8rem;color:var(--muted);margin-bottom:1.25rem;"></p>
+    <div id="skill-modal-body"></div>
+  </div>
+</div>
+
 <!-- Delete Report Modal -->
 <div id="delete-report-modal">
   <div class="delete-modal-box">
