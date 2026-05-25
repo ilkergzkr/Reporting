@@ -2386,12 +2386,11 @@ function getWeekDays(monday) {
 function renderWeeklyOutput(offset) {
   currentWeekOffset = offset;
   const { monday, friday } = getWeekBounds(offset);
-  const days = getWeekDays(monday);
+  const days  = getWeekDays(monday);
   const reports = getReports();
-  const users = getUsers();
-  const headTasks = getTasksFor('Head Assembly');
+  const users   = getUsers().filter(u => !u.isAdmin);
+  const cat     = getCatalog();
   const container = document.getElementById('weekly-output');
-
   const weekLabel = `${fmtDisplay(monday)} – ${fmtDisplay(friday)}`;
 
   let html = `
@@ -2407,105 +2406,175 @@ function renderWeeklyOutput(offset) {
     return;
   }
 
+  // Collect all product+assembly combos that had reports this week
+  const weekReportsAll = reports.filter(r =>
+    r.date >= formatDate(monday) && r.date <= formatDate(friday)
+  );
+
+  // Build set of active product::assembly pairs this week (union across all users)
+  const activeCombos = [];
+  const seenCombos = new Set();
+  cat.products.forEach(prod => {
+    const asms = cat.assemblies[prod.name] || [];
+    asms.forEach(asm => {
+      const key = prod.name + '::' + asm;
+      if (!seenCombos.has(key) && weekReportsAll.some(r => r.product === prod.name && r.assembly === asm)) {
+        seenCombos.add(key);
+        const tasks = cat.tasks[key] || cat.tasks[asm] || [];
+        activeCombos.push({ product: prod.name, assembly: asm, tasks });
+      }
+    });
+  });
+
+  // Also catch any combos in reports not in catalog (legacy data)
+  weekReportsAll.forEach(r => {
+    const key = (r.product||'') + '::' + (r.assembly||'');
+    if (!seenCombos.has(key)) {
+      seenCombos.add(key);
+      activeCombos.push({ product: r.product||'', assembly: r.assembly||'', tasks: [] });
+    }
+  });
+
+  if (activeCombos.length === 0) {
+    html += `<div class="empty-state">No reports found for this week.</div>`;
+    container.innerHTML = html;
+    return;
+  }
+
   users.forEach(u => {
     const workerName = u.name || u.username;
-    const initials = workerName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+    const initials   = workerName.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
 
-    const weekReports = reports.filter(r => {
-      return r.worker === workerName
-        && r.assembly === 'Head Assembly'
-        && r.date >= formatDate(monday)
-        && r.date <= formatDate(friday);
-    });
-
-    const matrix = {};
-    headTasks.forEach(t => { matrix[t] = {}; days.forEach(d => { matrix[t][d.date] = 0; }); });
-
-    weekReports.forEach(r => {
-      (r.tasks || []).forEach(task => {
-        if (matrix[task.name] && matrix[task.name][r.date] !== undefined) {
-          matrix[task.name][r.date] += parseInt(task.qty) || 0;
-        }
-      });
-    });
-
-    const rowTotals = {};
-    headTasks.forEach(t => { rowTotals[t] = days.reduce((s,d) => s + (matrix[t][d.date]||0), 0); });
-    const dayTotals = {};
-    days.forEach(d => { dayTotals[d.date] = headTasks.reduce((s,t) => s + (matrix[t][d.date]||0), 0); });
-    const grandTotal = Object.values(rowTotals).reduce((a,b)=>a+b,0);
+    const userWeekReports = weekReportsAll.filter(r => r.worker === workerName);
+    if (userWeekReports.length === 0) return; // skip workers with no activity this week
 
     html += `
     <div class="weekly-worker-block">
       <div class="weekly-worker-name">
         <div class="worker-avatar" style="width:30px;height:30px;font-size:12px;">${initials}</div>
-        ${workerName} <span style="font-size:0.7rem;color:var(--muted);font-weight:400;">— ${T('headAssembly')}</span>
-      </div>
-      <div style="overflow-x:auto;">
-      <table class="weekly-table">
-        <thead>
-          <tr>
-            <th>${T('taskOp')}</th>
-            ${days.map(d=>`<th>${d.label}</th>`).join('')}
-            <th style="color:var(--accent);">${T('total')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${headTasks.map(t => `
+        ${workerName}
+      </div>`;
+
+    activeCombos.forEach(({ product, assembly, tasks }) => {
+      const comboReports = userWeekReports.filter(r => r.product === product && r.assembly === assembly);
+      if (comboReports.length === 0) return;
+
+      // Collect all task names from both catalog and actual reports
+      const taskNames = [...new Set([
+        ...tasks,
+        ...comboReports.flatMap(r => (r.tasks||[]).map(t=>t.name))
+      ])];
+
+      const matrix = {};
+      taskNames.forEach(t => { matrix[t] = {}; days.forEach(d => { matrix[t][d.date] = 0; }); });
+
+      comboReports.forEach(r => {
+        (r.tasks || []).forEach(task => {
+          if (!matrix[task.name]) { matrix[task.name] = {}; days.forEach(d => { matrix[task.name][d.date] = 0; }); }
+          if (matrix[task.name][r.date] !== undefined) {
+            matrix[task.name][r.date] += parseInt(task.qty) || 0;
+          }
+        });
+      });
+
+      const rowTotals = {};
+      taskNames.forEach(t => { rowTotals[t] = days.reduce((s,d) => s + (matrix[t][d.date]||0), 0); });
+      const dayTotals = {};
+      days.forEach(d => { dayTotals[d.date] = taskNames.reduce((s,t) => s + (matrix[t][d.date]||0), 0); });
+      const grandTotal = Object.values(rowTotals).reduce((a,b)=>a+b,0);
+
+      html += `
+      <div style="margin-bottom:1.25rem;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent);margin-bottom:0.5rem;padding:0.25rem 0;">
+          ${product} · ${assembly}
+        </div>
+        <div style="overflow-x:auto;">
+        <table class="weekly-table">
+          <thead>
             <tr>
-              <td>${t}</td>
-              ${days.map(d => {
-                const v = matrix[t][d.date];
-                return `<td class="${v===0?'cell-zero':''}">${v===0?'—':v}</td>`;
-              }).join('')}
-              <td style="color:${rowTotals[t]>0?'var(--text)':'var(--border2)'};">${rowTotals[t]||'—'}</td>
+              <th>${T('taskOp')}</th>
+              ${days.map(d=>`<th>${d.label}</th>`).join('')}
+              <th style="color:var(--accent);">${T('total')}</th>
             </tr>
-          `).join('')}
-          <tr>
-            <td style="color:var(--accent);font-weight:700;font-family:'Syne';">${T('total')}</td>
-            ${days.map(d=>`<td>${dayTotals[d.date]||'—'}</td>`).join('')}
-            <td>${grandTotal||'—'}</td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
-    </div>`;
+          </thead>
+          <tbody>
+            ${taskNames.map(t => `
+              <tr>
+                <td>${t}</td>
+                ${days.map(d => {
+                  const v = matrix[t][d.date];
+                  return `<td class="${v===0?'cell-zero':''}">${v===0?'—':v}</td>`;
+                }).join('')}
+                <td style="color:${rowTotals[t]>0?'var(--text)':'var(--border2)'};">${rowTotals[t]||'—'}</td>
+              </tr>
+            `).join('')}
+            <tr>
+              <td style="color:var(--accent);font-weight:700;font-family:'Syne';">${T('total')}</td>
+              ${days.map(d=>`<td>${dayTotals[d.date]||'—'}</td>`).join('')}
+              <td>${grandTotal||'—'}</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>`;
+    });
+
+    html += `</div>`;
   });
 
   container.innerHTML = html;
 }
-
 function renderWorkerProgress() {
-  const users = getUsers();
-  const reports = getReports();
+  const users     = getUsers().filter(u => !u.isAdmin);
+  const reports   = getReports();
   const container = document.getElementById('workers-list');
-  // Count ALL tasks across all products/assemblies
-  const cat = getCatalog();
-  let totalAllTasks = 0;
+  const cat       = getCatalog();
+
+  // Build full task list across all products/assemblies
+  const allTaskKeys = [];
   cat.products.forEach(prod => {
     const asms = cat.assemblies[prod.name] || [];
     asms.forEach(asm => {
-      const key = prod.name + '::' + asm;
-      totalAllTasks += (cat.tasks[key] || cat.tasks[asm] || []).length;
+      const key   = prod.name + '::' + asm;
+      const tasks = cat.tasks[key] || cat.tasks[asm] || [];
+      tasks.forEach(t => allTaskKeys.push(prod.name + '::' + asm + '::' + t));
     });
   });
-  const totalHeadTasks = totalAllTasks || 1;
+  const totalAllTasks = allTaskKeys.length || 1;
 
   if (users.length === 0) {
     container.innerHTML = `<div class="empty-state">${T('noWorkers')}</div>`;
     return;
   }
 
+  // Last 7 days activity
+  const now  = new Date();
+  const ago7 = new Date(now); ago7.setDate(now.getDate() - 7);
+  const ago7str = formatDate(ago7);
+
   container.innerHTML = users.map(u => {
-    const workerName = u.name || u.username;
-    const userReports = reports.filter(r => r.worker === workerName);
-    const total = userReports.length;
-    const sent = userReports.filter(r => r.sent).length;
-    const avatarUrl = getAvatarUrlForUser(u);
+    const workerName   = u.name || u.username;
+    const userReports  = reports.filter(r => r.worker === workerName);
+    const total        = userReports.length;
+    const sent         = userReports.filter(r => r.sent).length;
+    const recent       = userReports.filter(r => r.date >= ago7str).length;
+    const avatarUrl    = getAvatarUrlForUser(u);
     const learnedSkills = getLearnedSkills(u.username);
-    // Count only skills in new format (product::assembly::task)
     const masteredCount = learnedSkills.filter(s => s.includes('::')).length || learnedSkills.length;
-    const masteryPct = Math.round((masteredCount / totalHeadTasks) * 100);
+    const masteryPct   = Math.min(Math.round((masteredCount / totalAllTasks) * 100), 100);
+
+    // Breakdown: reports per product
+    const byProduct = {};
+    userReports.forEach(r => {
+      const k = (r.product || '?') + ' · ' + (r.assembly || '?');
+      byProduct[k] = (byProduct[k] || 0) + 1;
+    });
+    const productRows = Object.entries(byProduct)
+      .sort((a,b) => b[1]-a[1])
+      .map(([k,v]) => `<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:0.25rem 0;border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);">${k}</span>
+        <span style="font-family:'DM Mono';font-weight:600;">${v}</span>
+      </div>`).join('');
 
     return `
     <div class="worker-card">
@@ -2521,37 +2590,35 @@ function renderWorkerProgress() {
         </div>
       </div>
 
-      <div class="skill-bar-section">
-        <div class="skill-bar-title">${T('headAssemblyMastery')} · ${masteredCount}/${totalHeadTasks} · ${masteryPct}%</div>
-        <div class="skill-master-bar-wrap">
-          <div class="skill-master-bar-fill" style="width:${masteryPct}%"></div>
-          <span class="skill-master-pct">${masteryPct}%</span>
-        </div>
-        <div style="margin-top:0.6rem; display:flex; flex-direction:column; gap:0.3rem;">
-          ${headTasks.map(t => {
-            const done = learnedSkills.includes(t);
-            return `<div style="display:flex;align-items:center;gap:0.5rem;">
-              <span style="width:16px;height:16px;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;background:${done?'rgba(124,58,237,0.3)':'var(--surface2)'};color:${done?'#a78bfa':'var(--muted)'};border:1px solid ${done?'rgba(124,58,237,0.5)':'var(--border)'};">${done?'✓':'·'}</span>
-              <span style="font-size:0.78rem;color:${done?'#c4b5fd':'var(--muted)'};font-weight:${done?'600':'400'};">${t}</span>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>
-
-      <div class="progress-row" style="margin-top:1rem;">
+      <div class="progress-row">
         <div class="progress-label"><span>${T('totalReports')}</span><span>${total}</span></div>
-        <div class="progress-bar"><div class="progress-fill blue" style="width:${Math.min(total*10,100)}%"></div></div>
+        <div class="progress-bar"><div class="progress-fill blue" style="width:${Math.min(total*5,100)}%"></div></div>
+      </div>
+      <div class="progress-row">
+        <div class="progress-label"><span>Last 7 days</span><span>${recent}</span></div>
+        <div class="progress-bar"><div class="progress-fill green" style="width:${Math.min(recent*20,100)}%"></div></div>
       </div>
       <div class="progress-row">
         <div class="progress-label"><span>${T('sheetsUploads')}</span><span>${sent}/${total}</span></div>
         <div class="progress-bar"><div class="progress-fill amber" style="width:${total>0?Math.round(sent/total*100):0}%"></div></div>
       </div>
+
+      ${productRows ? `<div style="margin-top:0.75rem;">${productRows}</div>` : ''}
+
+      <div class="skill-bar-section" style="margin-top:0.75rem;">
+        <div class="skill-bar-title">Skill Mastery · ${masteredCount}/${totalAllTasks} · ${masteryPct}%</div>
+        <div class="skill-master-bar-wrap">
+          <div class="skill-master-bar-fill" style="width:${masteryPct}%"></div>
+          <span class="skill-master-pct">${masteryPct}%</span>
+        </div>
+      </div>
     </div>`;
   }).join('');
 }
 
+
 function renderReportsList() {
-  const reports = getReports();
+  const reports = getReports().filter(r => r.worker); // exclude malformed docs
   const container = document.getElementById('reports-list-admin');
   if (reports.length === 0) {
     container.innerHTML = `<div class="empty-state">${T('noReports')}</div>`;
