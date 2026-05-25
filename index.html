@@ -322,6 +322,15 @@
   }
   .badge.sent { background: rgba(16,185,129,0.2); color: #34d399; }
   .badge.pending { background: rgba(245,158,11,0.2); color: #fcd34d; }
+  .btn-delete-report { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1rem; padding: 0.25rem 0.4rem; border-radius: 6px; transition: background 0.15s, color 0.15s; line-height:1; }
+  .btn-delete-report:hover { background: rgba(239,68,68,0.15); color: #f87171; }
+  /* Delete confirm modal */
+  #delete-report-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center; }
+  #delete-report-modal.active { display:flex; }
+  .delete-modal-box { background:var(--surface); border:1px solid var(--border2); border-radius:16px; padding:2rem; max-width:380px; width:90%; text-align:center; }
+  .delete-modal-box h3 { font-family:'Syne'; font-size:1.1rem; margin-bottom:0.5rem; }
+  .delete-modal-box p { font-size:0.82rem; color:var(--muted); margin-bottom:1.5rem; line-height:1.6; }
+  .delete-modal-actions { display:flex; gap:0.75rem; justify-content:center; }
 
   .sheets-link-box {
     background: var(--surface); border: 1px solid var(--border);
@@ -2649,19 +2658,66 @@ function renderReportsList() {
     container.innerHTML = `<div class="empty-state">${T('noReports')}</div>`;
     return;
   }
-  container.innerHTML = [...reports].reverse().map(r => `
-    <div class="report-row">
+  container.innerHTML = [...reports].reverse().map(r => {
+    const totalQty = (r.tasks||[]).reduce((s,t) => s+(parseInt(t.qty)||0),0);
+    const taskSummary = (r.tasks||[]).map(t => `${t.name}: <b>${t.qty}</b>`).join(' · ');
+    const safeId = r.id ? r.id.replace(/[^a-zA-Z0-9_-]/g,'') : '';
+    return `
+    <div class="report-row" id="rrow-${safeId}">
       <div class="worker-avatar" style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;flex-shrink:0;">${(r.worker||'?')[0].toUpperCase()}</div>
-      <div style="flex:1">
-        <div class="report-row-user">${r.worker}</div>
-        <div class="report-row-info">${r.product} · ${r.assembly}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="report-row-user">${r.worker} <span style="font-weight:400;color:var(--muted);">· ${r.product} · ${r.assembly}</span></div>
+        <div class="report-row-info" style="margin-top:0.2rem;">${taskSummary || '—'}</div>
       </div>
-      <div style="text-align:right">
-        <div class="report-row-date">${r.date}</div>
-        <span class="badge ${r.sent?'sent':'pending'}">${r.sent?T('sent'):T('local')}</span>
+      <div style="display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">
+        <div style="text-align:right;">
+          <div class="report-row-date">${r.date}</div>
+          <div style="display:flex;align-items:center;gap:0.4rem;justify-content:flex-end;margin-top:0.2rem;">
+            <span class="badge ${r.sent?'sent':'pending'}">${r.sent?T('sent'):T('local')}</span>
+            ${totalQty > 0 ? `<span style="font-size:10px;font-family:'DM Mono';color:var(--accent);font-weight:700;">${totalQty} units</span>` : ''}
+          </div>
+        </div>
+        <button class="btn-delete-report" title="Delete report" onclick="openDeleteModal('${r.id}','${(r.worker||'').replace(/'/g,"\'")}','${r.date}')">🗑</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+let _pendingDeleteId = null;
+
+function openDeleteModal(reportId, worker, date) {
+  _pendingDeleteId = reportId;
+  document.getElementById('delete-modal-desc').innerHTML =
+    `Delete <b>${worker}</b>'s report from <b>${date}</b>?<br><span style="color:#f87171;">This cannot be undone.</span>`;
+  document.getElementById('delete-report-modal').classList.add('active');
+}
+
+function closeDeleteModal() {
+  _pendingDeleteId = null;
+  document.getElementById('delete-report-modal').classList.remove('active');
+}
+
+async function confirmDeleteReport() {
+  if (!_pendingDeleteId) return;
+  const id = _pendingDeleteId;
+  closeDeleteModal();
+  try {
+    await db.collection('reports').doc(id).delete();
+    // Remove from local cache immediately
+    _reports = _reports.filter(r => r.id !== id);
+    saveLocalBackup();
+    renderReportsList();
+    // Also refresh weekly/progress if visible
+    const activeTab = document.querySelector('.admin-tab.active');
+    if (activeTab) {
+      if (activeTab.id === 'tab-weekly')   renderWeeklyOutput(currentWeekOffset);
+      if (activeTab.id === 'tab-progress') renderWorkerProgress();
+    }
+    showToast('🗑 Report deleted.');
+  } catch(e) {
+    showToast('⚠ Could not delete report.');
+    console.error('Delete error:', e);
+  }
 }
 
 function switchTab(id) {
@@ -3378,5 +3434,17 @@ loadAllFromFirestore().then(async () => {
     </div>
   </div>
 </div>
+<!-- Delete Report Modal -->
+<div id="delete-report-modal">
+  <div class="delete-modal-box">
+    <h3>Delete Report?</h3>
+    <p id="delete-modal-desc">This will permanently remove the report from the database. This cannot be undone.</p>
+    <div class="delete-modal-actions">
+      <button class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn-primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);" onclick="confirmDeleteReport()">Delete</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
