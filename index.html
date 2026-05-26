@@ -149,7 +149,7 @@
   .btn-logout { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); padding: 0.3rem 0.7rem; font-size: 0.75rem; cursor: pointer; font-family: 'Syne'; transition: all 0.2s; }
   .btn-logout:hover { border-color: var(--red); color: var(--red); }
 
-  .page { display: none; padding: 1.5rem; max-width: 900px; margin: 0 auto; }
+  .page { display: none; padding: 1.5rem 1.5rem 5rem; max-width: 900px; margin: 0 auto; }
   .page.active { display: block; }
 
   /* HOME */
@@ -243,7 +243,12 @@
   .notes-area:focus { border-color: var(--accent); }
   .notes-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 0.5rem; }
 
-  .submit-row { margin-top: 1.5rem; position: relative; z-index: 1; }
+  .submit-row {
+    position: sticky; bottom: 0; left: 0; right: 0;
+    padding: 1rem 0 0.5rem; margin-top: 1.5rem;
+    background: linear-gradient(to bottom, transparent, var(--bg) 35%);
+    z-index: 50;
+  }
   .btn-submit {
     display: block; width: 100%; padding: 1rem;
     position: relative; z-index: 1;
@@ -1654,7 +1659,7 @@ function selectProduct(name) {
   const assemblies = getAssembliesFor(name);
   list.innerHTML = assemblies.length
     ? assemblies.map(a =>
-        `<div class="assembly-item" onclick="selectAssembly('${a.replace(/'/g,"\\'")}')">
+        `<div class="assembly-item" data-asm="${a}" onclick="selectAssembly(this.dataset.asm)">
           <span class="assembly-name">${a}</span>
           <span style="color:var(--muted)">›</span>
         </div>`
@@ -1798,7 +1803,7 @@ function renderProductGrid() {
     html += `<div class="section-label">${T('products')}</div>
     <div class="product-grid">
       ${regular.map(p => `
-        <div class="product-card" onclick="selectProduct('${p.name.replace(/'/g,"\\'")}')">
+        <div class="product-card" data-pname="${p.name}" onclick="selectProduct(this.dataset.pname)">
           <div class="product-name">${p.name}</div>
         </div>`).join('')}
     </div>`;
@@ -1807,7 +1812,7 @@ function renderProductGrid() {
     html += `<div class="section-label">${T('specialProducts')}</div>
     <div class="product-grid">
       ${special.map(p => `
-        <div class="product-card special" onclick="selectProduct('${p.name.replace(/'/g,"\\'")}')">
+        <div class="product-card special" data-pname="${p.name}" onclick="selectProduct(this.dataset.pname)">
           <div class="product-name">${p.name}</div>
           <div class="product-badge">${T('special')}</div>
         </div>`).join('')}
@@ -1888,7 +1893,7 @@ function renderCatalogEditor() {
               }).join('')}
               <div class="catalog-add-row">
                 <input class="catalog-add-input" id="newtask-${pi}-${ai}" placeholder="New task name…" onkeydown="if(event.key==='Enter')addTask('${asm.replace(/'/g,"\\'")}',${pi},${ai})">
-                <button class="btn-catalog-add" onclick="addTask('${asm.replace(/'/g,"\\'")}',${pi},${ai})">+ Add</button>
+                <button class="btn-catalog-add" data-asm="${asm}" data-pi="${pi}" data-ai="${ai}" onclick="addTask(this.dataset.asm,this.dataset.pi,this.dataset.ai)">+ Add</button>
               </div>
             </div>
           </div>`;
@@ -2614,6 +2619,86 @@ function renderWeeklyOutput(offset) {
     html += `</div></div>`; // close weekly-worker-body + weekly-worker-block
   });
 
+  // ── WEEKLY TOTALS BLOCK ──
+  // Aggregate across ALL users for this week
+  const totalByCombo = {};
+  activeCombos.forEach(({ product, assembly, tasks }) => {
+    const key = product + '::' + assembly;
+    const taskNames = [...new Set([
+      ...tasks,
+      ...weekReportsAll.flatMap(r => r.product === product && r.assembly === assembly ? (r.tasks||[]).map(t=>t.name) : [])
+    ])];
+    const matrix = {};
+    taskNames.forEach(t => { matrix[t] = {}; days.forEach(d => { matrix[t][d.date] = 0; }); });
+    weekReportsAll.filter(r => r.product === product && r.assembly === assembly).forEach(r => {
+      (r.tasks||[]).forEach(task => {
+        if (!matrix[task.name]) { matrix[task.name] = {}; days.forEach(d => { matrix[task.name][d.date] = 0; }); }
+        matrix[task.name][r.date] = (matrix[task.name][r.date] || 0) + (parseInt(task.qty) || 0);
+      });
+    });
+    totalByCombo[key] = { product, assembly, taskNames, matrix };
+  });
+
+  const grandWeekTotal = weekReportsAll.reduce((s,r) => s + (r.tasks||[]).reduce((ts,t) => ts+(parseInt(t.qty)||0),0), 0);
+
+  html += `
+  <div class="weekly-worker-block" id="wwb-totals">
+    <div class="weekly-worker-header" onclick="toggleWeeklyBlock('wwb-totals')" style="background:linear-gradient(135deg,rgba(79,110,247,0.12),rgba(124,58,237,0.08));border-bottom:1px solid rgba(79,110,247,0.2);">
+      <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">Σ</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:800;font-size:0.9rem;font-family:'Syne';">Weekly Totals</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:1px;">All workers · All products</div>
+      </div>
+      <div style="text-align:right;margin-right:0.75rem;">
+        <div style="font-family:'DM Mono';font-weight:700;font-size:1rem;color:var(--accent);">${grandWeekTotal}</div>
+        <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;">total units</div>
+      </div>
+      <span class="weekly-worker-chevron">▼</span>
+    </div>
+    <div class="weekly-worker-body">
+      ${Object.values(totalByCombo).map(({ product, assembly, taskNames, matrix }) => {
+        const rowTotals = {};
+        taskNames.forEach(t => { rowTotals[t] = days.reduce((s,d) => s+(matrix[t][d.date]||0),0); });
+        const dayTotals = {};
+        days.forEach(d => { dayTotals[d.date] = taskNames.reduce((s,t) => s+(matrix[t][d.date]||0),0); });
+        const grandTotal = Object.values(rowTotals).reduce((a,b)=>a+b,0);
+        if (grandTotal === 0) return '';
+        return `
+        <div style="margin-bottom:1.25rem;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent);margin-bottom:0.5rem;padding:0.25rem 0;">
+            ${product} · ${assembly}
+          </div>
+          <div style="overflow-x:auto;">
+          <table class="weekly-table">
+            <thead>
+              <tr>
+                <th>${T('taskOp')}</th>
+                ${days.map(d=>`<th>${d.label}</th>`).join('')}
+                <th style="color:var(--accent);">${T('total')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${taskNames.map(t => {
+                if (rowTotals[t] === 0) return '';
+                return `<tr>
+                  <td>${t}</td>
+                  ${days.map(d => { const v=matrix[t][d.date]; return `<td class="${v===0?'cell-zero':''}">${v===0?'—':v}</td>`; }).join('')}
+                  <td style="color:var(--accent);font-weight:700;">${rowTotals[t]}</td>
+                </tr>`;
+              }).join('')}
+              <tr>
+                <td style="color:var(--accent);font-weight:700;font-family:'Syne';">${T('total')}</td>
+                ${days.map(d=>`<td>${dayTotals[d.date]||'—'}</td>`).join('')}
+                <td style="color:var(--accent);font-weight:800;">${grandTotal}</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+
   container.innerHTML = html;
 }
 function toggleWeeklyBlock(id) {
@@ -2743,7 +2828,7 @@ function renderReportsList() {
             ${totalQty > 0 ? `<span style="font-size:10px;font-family:'DM Mono';color:var(--accent);font-weight:700;">${totalQty} units</span>` : ''}
           </div>
         </div>
-        <button class="btn-delete-report" title="Delete report" onclick="openDeleteModal('${r.id}','${(r.worker||'').replace(/'/g,"\'")}','${r.date}')">🗑</button>
+        <button class="btn-delete-report" title="Delete report" data-rid="${r.id}" data-rworker="${(r.worker||'')}" data-rdate="${r.date}" onclick="openDeleteModal(this.dataset.rid,this.dataset.rworker,this.dataset.rdate)">🗑</button>
       </div>
     </div>`;
   }).join('');
