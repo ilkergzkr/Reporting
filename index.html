@@ -2702,7 +2702,7 @@ function renderWorkerProgress() {
 
       ${productRows ? `<div style="margin-top:0.75rem;">${productRows}</div>` : ''}
 
-      <div class="skill-bar-section" style="margin-top:0.75rem;cursor:pointer;" onclick="openSkillModal('${u.username}','${workerName.replace(/'/g,\"\\'\")}')">
+      <div class="skill-bar-section" style="margin-top:0.75rem;cursor:pointer;" data-skill-user="${u.username}" data-skill-name="${workerName}" onclick="openSkillModal(this.dataset.skillUser, this.dataset.skillName)">
         <div class="skill-bar-title" style="display:flex;justify-content:space-between;align-items:center;">
           <span>Skill Mastery · ${masteredCount}/${totalAllTasks} · ${masteryPct}%</span>
           <span style="font-size:0.7rem;color:var(--accent);font-weight:600;">View details ›</span>
