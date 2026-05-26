@@ -1515,40 +1515,72 @@ async function doManagerLogin() {
 async function doLogin() {
   const u = document.getElementById('login-user').value.trim();
   const p = document.getElementById('login-pass').value;
-  document.getElementById('login-error').style.display = 'none';
-
-  // Load admin profile to check custom username
-  let adminDataLogin = {};
-  try {
-    const adminSnapLogin = await db.doc('users/admin_profile').get();
-    if (adminSnapLogin.exists) adminDataLogin = adminSnapLogin.data();
-  } catch(e) {}
-  const adminUsernameLogin = adminDataLogin.username || ADMIN_USER;
-  const adminPassLogin = adminDataLogin.password || ADMIN_PASS;
-
-  if ((u === ADMIN_USER || u === adminUsernameLogin) && p === adminPassLogin) {
-    try {
-      const adminData = adminDataLogin;
-      currentUser = { 
-        username: adminData.username || ADMIN_USER, 
-        name: adminData.name || 'Manager', 
-        email: adminData.email || '', 
-        isAdmin: true 
-      };
-    } catch(e) {
-      currentUser = { username: ADMIN_USER, name: 'Manager', isAdmin: true };
-    }
-    enterApp();
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('btn-login-submit');
+  errEl.style.display = 'none';
+  if (!u || !p) {
+    errEl.textContent = 'Please enter username and password.';
+    errEl.style.display = 'block';
     return;
   }
 
-  const users = getUsers();
-  const found = users.find(x => x.username === u && x.password === p);
-  if (found) {
-    currentUser = { ...found, isAdmin: false };
-    enterApp();
-  } else {
-    document.getElementById('login-error').style.display = 'block';
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+
+  try {
+    // ── Check admin first (from Firestore or fallback to constants) ──
+    let adminDataLogin = {};
+    try {
+      const adminSnapLogin = await db.doc('users/admin_profile').get();
+      if (adminSnapLogin.exists) adminDataLogin = adminSnapLogin.data();
+    } catch(e) { console.warn('Admin profile fetch failed:', e); }
+
+    const adminUsernameLogin = adminDataLogin.username || ADMIN_USER;
+    const adminPassLogin = adminDataLogin.password || ADMIN_PASS;
+
+    if ((u === ADMIN_USER || u === adminUsernameLogin) && p === adminPassLogin) {
+      currentUser = {
+        username: adminDataLogin.username || ADMIN_USER,
+        name: adminDataLogin.name || 'Manager',
+        email: adminDataLogin.email || '',
+        isAdmin: true
+      };
+      enterApp();
+      return;
+    }
+
+    // ── Worker login — try in-memory cache first, then Firestore directly ──
+    let found = _users.find(x => x.username === u && x.password === p);
+
+    if (!found) {
+      // Try fetching directly from Firestore in case _users isn't loaded yet
+      try {
+        const snap = await db.doc('users/' + u).get();
+        if (snap.exists) {
+          const data = snap.data();
+          if (data.password === p) {
+            found = { id: snap.id, ...data };
+            // Add to local cache if missing
+            if (!_users.find(x => x.username === u)) _users.push(found);
+          }
+        }
+      } catch(e) { console.warn('Direct user fetch failed:', e); }
+    }
+
+    if (found) {
+      currentUser = { ...found, isAdmin: false };
+      enterApp();
+    } else {
+      errEl.textContent = 'Invalid username or password.';
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    console.error('Login error:', e);
+    errEl.textContent = 'Connection error. Please try again.';
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In →';
   }
 }
 
@@ -3473,6 +3505,7 @@ document.addEventListener('click', function(e) {
 
 // ── Submit button reliable click handler ──
 document.addEventListener('DOMContentLoaded', function() {
+  // Submit report button
   const submitBtn = document.getElementById('submit-btn');
   if (submitBtn) {
     submitBtn.addEventListener('click', function(e) {
@@ -3480,12 +3513,21 @@ document.addEventListener('DOMContentLoaded', function() {
       e.stopPropagation();
       submitReport();
     });
-    // Also handle touch
     submitBtn.addEventListener('touchend', function(e) {
       e.preventDefault();
       submitReport();
     });
   }
+
+  // Enter key on login fields
+  ['login-user','login-pass'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  });
+  ['mgr-user','mgr-pass'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doManagerLogin(); });
+  });
 });
 
 // Bootstrap: load Firestore data, restore session, apply language
