@@ -1729,11 +1729,17 @@ function selectAssembly(name) {
   const tbody = document.getElementById('tasks-body');
   // Reset asmline state when loading new assembly
   _asmLineTask = null; _asmLineWorkers = [];
-  document.getElementById('asmline-panel').classList.remove('open');
-  document.getElementById('asmline-check').checked = false;
-  document.getElementById('asmline-users-wrap').classList.remove('open');
-  document.getElementById('asmline-confirm-row').classList.remove('visible');
-  document.getElementById('asmline-status-text').textContent = '';
+  const asmPop = document.getElementById('asmline-popover');
+  if (asmPop) asmPop.classList.remove('open');
+  const asmCheck = document.getElementById('asmline-check');
+  if (asmCheck) asmCheck.checked = false;
+  const asmWrap = document.getElementById('asmline-users-wrap');
+  if (asmWrap) asmWrap.classList.remove('open');
+  const asmConfBtn = document.getElementById('asmline-confirm-btn');
+  if (asmConfBtn) asmConfBtn.classList.remove('visible');
+  const asmStatus = document.getElementById('asmline-status-text');
+  if (asmStatus) asmStatus.textContent = '';
+  document.querySelectorAll('.btn-asmline').forEach(b => { b.classList.remove('active'); b.textContent = '⚙'; });
 
   tbody.innerHTML = tasks.map(t =>
     `<tr id="row-${t.replace(/[^a-zA-Z0-9]/g,'_')}">
