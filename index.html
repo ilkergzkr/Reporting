@@ -2582,8 +2582,11 @@ function renderWeeklyOutput(offset) {
     const userWeekReports = weekReportsAll.filter(r => r.worker === workerName);
     if (userWeekReports.length === 0) return; // skip workers with no activity this week
 
-    // Count total qty for this worker this week (for header summary)
-    const workerWeekTotal = userWeekReports.reduce((s,r) => s + (r.tasks||[]).reduce((ts,t) => ts+(parseInt(t.qty)||0),0), 0);
+    // Count total qty — exclude Assembly Line tasks (shown in separate table)
+    const workerWeekTotal = userWeekReports.reduce((s,r) => {
+      const asmTask = r.asmLine && r.asmLine.task;
+      return s + (r.tasks||[]).reduce((ts,t) => t.name === asmTask ? ts : ts+(parseInt(t.qty)||0), 0);
+    }, 0);
     const workerCombos    = [...new Set(userWeekReports.map(r => r.product))].join(', ');
     const blockId = 'wwb-' + (u.username || workerName).replace(/\s/g,'_');
 
@@ -2607,17 +2610,19 @@ function renderWeeklyOutput(offset) {
       const comboReports = userWeekReports.filter(r => r.product === product && r.assembly === assembly);
       if (comboReports.length === 0) return;
 
-      // Collect all task names from both catalog and actual reports
+      // Collect all task names — exclude Assembly Line tasks
       const taskNames = [...new Set([
         ...tasks,
         ...comboReports.flatMap(r => (r.tasks||[]).map(t=>t.name))
-      ])];
+      ])].filter(t => !comboReports.some(r => r.asmLine && r.asmLine.task === t));
 
       const matrix = {};
       taskNames.forEach(t => { matrix[t] = {}; days.forEach(d => { matrix[t][d.date] = 0; }); });
 
       comboReports.forEach(r => {
+        const asmTask = r.asmLine && r.asmLine.task;
         (r.tasks || []).forEach(task => {
+          if (task.name === asmTask) return; // skip — shown in Assembly Line table
           if (!matrix[task.name]) { matrix[task.name] = {}; days.forEach(d => { matrix[task.name][d.date] = 0; }); }
           if (matrix[task.name][r.date] !== undefined) {
             matrix[task.name][r.date] += parseInt(task.qty) || 0;
