@@ -1023,6 +1023,7 @@
       <div style="background:var(--surface); border:1px solid rgba(124,58,237,0.3); border-radius:12px; padding:1rem;">
         <div id="skills-desc" style="font-size:0.78rem; color:var(--muted); margin-bottom:0.75rem;">Select all tasks you have learned or mastered in this assembly:</div>
         <div id="skills-checkboxes"></div>
+        <p id="skills-save-hint" style="display:none;font-size:0.72rem;color:var(--muted);margin:0.4rem 1rem 0;"> Skill selections will be saved when you upload the report.</p>
       </div>
     </div>
 
@@ -1821,6 +1822,9 @@ async function submitReport() {
       timestamp: new Date().toISOString(),
       sent: sentOk
     });
+    // Save skills to Firestore only on successful report upload
+    const currentSkills = getLearnedSkills(currentUser.username);
+    await saveLearnedSkills(currentUser.username, currentSkills);
     saveLocalBackup();
   } catch(e) {
     console.error('Firestore report save error:', e);
@@ -2407,15 +2411,15 @@ function renderAdmin() {
 }
 
 // getLearnedSkills and saveLearnedSkills replaced by Firebase versions above
-async function toggleSkill(el, taskName, alreadyLearned) {
+function toggleSkill(el, taskName, alreadyLearned) {
   if (alreadyLearned) {
-    // Show warning - already mastered
     el.style.animation = 'shake 0.3s ease';
     setTimeout(() => el.style.animation = '', 300);
     showToast('✓ You already mastered this skill!');
     return;
   }
   el.classList.toggle('checked');
+  // Just update local cache — will be saved to Firestore on Upload Report
   const skills = getLearnedSkills(currentUser.username);
   if (el.classList.contains('checked')) {
     if (!skills.includes(taskName)) skills.push(taskName);
@@ -2423,7 +2427,10 @@ async function toggleSkill(el, taskName, alreadyLearned) {
     const idx = skills.indexOf(taskName);
     if (idx > -1) skills.splice(idx, 1);
   }
-  await saveLearnedSkills(currentUser.username, skills);
+  _skills[currentUser.username] = skills; // local only, no Firestore write
+  // Show hint on first toggle
+  const hint = document.getElementById('skills-save-hint');
+  if (hint) hint.style.display = 'block';
 }
 
 // ── Backdate ──
