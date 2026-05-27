@@ -235,28 +235,38 @@
   .qty-input:focus { border-color: var(--accent); }
 
   /* Assembly Line */
-  .btn-asmline { background:none; border:1px solid var(--border2); border-radius:7px; padding:0.25rem 0.45rem; cursor:pointer; color:var(--muted); font-size:0.8rem; line-height:1; transition:all 0.15s; flex-shrink:0; }
+  .btn-asmline { background:none; border:1px solid var(--border2); border-radius:7px; padding:0.25rem 0.45rem; cursor:pointer; color:var(--muted); font-size:0.78rem; line-height:1; transition:all 0.15s; flex-shrink:0; }
   .btn-asmline:hover, .btn-asmline.active { border-color:var(--accent); color:var(--accent); background:rgba(79,110,247,0.1); }
-  #asmline-panel { display:none; margin:0.75rem 1rem 0.25rem; background:var(--surface2); border:1px solid var(--border2); border-radius:10px; padding:0.9rem 1rem; }
-  #asmline-panel.open { display:block; }
-  .asmline-toggle-row { display:flex; align-items:center; gap:0.6rem; margin-bottom:0.75rem; }
-  .asmline-toggle-label { font-size:0.82rem; font-weight:600; cursor:pointer; user-select:none; }
-  .asmline-checkbox { width:16px; height:16px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
+  #asmline-popover {
+    position:fixed; z-index:9999; display:none;
+    background:var(--surface); border:1px solid var(--border2);
+    border-radius:12px; padding:0.85rem 1rem;
+    width:220px; box-shadow:0 8px 28px rgba(0,0,0,0.65);
+  }
+  #asmline-popover.open { display:block; }
+  .asmline-pop-title { font-size:0.7rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:0.65rem; }
+  .asmline-toggle-row { display:flex; align-items:center; gap:0.55rem; margin-bottom:0.6rem; }
+  .asmline-toggle-label { font-size:0.8rem; font-weight:600; cursor:pointer; user-select:none; }
+  .asmline-checkbox { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
   .asmline-users-wrap { display:none; }
   .asmline-users-wrap.open { display:block; }
-  .asmline-users-label { font-size:0.72rem; color:var(--muted); margin-bottom:0.5rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; }
-  .asmline-user-list { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.75rem; }
-  .asmline-chip { display:flex; align-items:center; gap:0.35rem; padding:0.3rem 0.65rem; border-radius:20px; border:1.5px solid var(--border2); background:var(--surface); cursor:pointer; font-size:0.78rem; font-weight:600; transition:all 0.15s; user-select:none; white-space:nowrap; }
-  .asmline-chip:hover { border-color:var(--accent); background:rgba(79,110,247,0.08); }
-  .asmline-chip.selected { border-color:var(--accent); background:rgba(79,110,247,0.18); color:var(--accent); }
-  .asmline-chip-dot { width:8px; height:8px; border-radius:50%; background:var(--border2); flex-shrink:0; transition:background 0.15s; }
-  .asmline-chip.selected .asmline-chip-dot { background:var(--accent); }
-  .asmline-confirm { display:none; margin-top:0.25rem; }
-  .asmline-confirm.visible { display:flex; align-items:center; gap:0.5rem; }
-  .asmline-confirm-btn { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:8px; color:#fff; font-family:'Syne'; font-weight:700; font-size:0.8rem; padding:0.4rem 1rem; cursor:pointer; }
+  .asmline-users-label { font-size:0.68rem; color:var(--muted); margin-bottom:0.4rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; }
+  .asmline-user-list { display:flex; flex-direction:column; gap:0.2rem; margin-bottom:0.65rem; max-height:180px; overflow-y:auto; }
+  .asmline-chip { display:flex; align-items:center; gap:0.5rem; padding:0.3rem 0.5rem; border-radius:7px; cursor:pointer; font-size:0.78rem; font-weight:500; transition:background 0.12s; user-select:none; }
+  .asmline-chip:hover { background:var(--surface2); }
+  .asmline-chip.selected { background:rgba(79,110,247,0.15); color:var(--accent); font-weight:600; }
+  .asmline-chip-dot { width:7px; height:7px; border-radius:50%; border:1.5px solid var(--border2); flex-shrink:0; transition:all 0.12s; }
+  .asmline-chip.selected .asmline-chip-dot { background:var(--accent); border-color:var(--accent); }
+  .asmline-sep { height:1px; background:var(--border); margin:0.5rem 0; }
+  .asmline-confirm-btn { width:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:8px; color:#fff; font-family:'Syne'; font-weight:700; font-size:0.78rem; padding:0.45rem 0; cursor:pointer; display:none; }
   .asmline-confirm-btn:hover { opacity:0.88; }
-  .asmline-status { font-size:0.75rem; color:var(--accent); font-weight:600; }
-  .asmline-badge { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.65rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; background:rgba(79,110,247,0.2); color:var(--accent); border-radius:4px; padding:0.1rem 0.4rem; margin-left:0.4rem; }
+  .asmline-confirm-btn.visible { display:block; }
+  .asmline-clear-btn { width:100%; background:none; border:1px solid rgba(239,68,68,0.35); border-radius:8px; color:var(--red,#f87171); font-size:0.75rem; font-weight:600; padding:0.35rem 0; cursor:pointer; margin-top:0.4rem; display:none; }
+  .asmline-clear-btn:hover { background:rgba(239,68,68,0.1); }
+  .asmline-clear-btn.visible { display:block; }
+  .asmline-status { font-size:0.7rem; color:var(--muted); margin-top:0.4rem; text-align:center; display:none; }
+  .asmline-status.visible { display:block; }
+  .asmline-badge { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.62rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; background:rgba(79,110,247,0.2); color:var(--accent); border-radius:4px; padding:0.1rem 0.4rem; margin-left:0.4rem; }
 
   .notes-area {
     width: 100%; padding: 0.75rem 1rem; margin-top: 1rem;
@@ -1005,20 +1015,7 @@
         </thead>
         <tbody id="tasks-body"></tbody>
       </table>
-      <div id="asmline-panel">
-        <div class="asmline-toggle-row">
-          <input type="checkbox" class="asmline-checkbox" id="asmline-check" onchange="toggleAsmLineUsers(this)">
-          <label class="asmline-toggle-label" for="asmline-check">Assembly Line — shared task</label>
-        </div>
-        <div class="asmline-users-wrap" id="asmline-users-wrap">
-          <div class="asmline-users-label">Select participating workers:</div>
-          <div class="asmline-user-list" id="asmline-user-chips"></div>
-          <div class="asmline-confirm" id="asmline-confirm-row">
-            <button class="asmline-confirm-btn" onclick="confirmAsmLine()">✓ Confirm</button>
-            <span class="asmline-status" id="asmline-status-text"></span>
-          </div>
-        </div>
-      </div>
+
     </div>
 
     <!-- LEARNED SKILLS SECTION (only for Head Assembly) -->
@@ -2816,42 +2813,46 @@ let _asmLineTask = null;
 let _asmLineWorkers = [];
 
 function openAsmLinePanel(taskName) {
-  const panel = document.getElementById('asmline-panel');
-  const allBtns = document.querySelectorAll('.btn-asmline');
-  const thisBtn = document.querySelector(`.btn-asmline[data-task="${taskName}"]`);
+  const pop = document.getElementById('asmline-popover');
+  const btn = document.querySelector('.btn-asmline[data-task="' + taskName + '"]');
 
-  // If clicking the already-active task, toggle closed
-  if (_asmLineTask === taskName && panel.classList.contains('open')) {
-    panel.classList.remove('open');
-    allBtns.forEach(b => b.classList.remove('active'));
+  // Toggle closed if same task
+  if (_asmLineTask === taskName && pop.classList.contains('open')) {
+    pop.classList.remove('open');
+    document.querySelectorAll('.btn-asmline').forEach(b => b.classList.remove('active'));
     return;
   }
 
   _asmLineTask = taskName;
-  allBtns.forEach(b => b.classList.remove('active'));
-  if (thisBtn) thisBtn.classList.add('active');
+  document.querySelectorAll('.btn-asmline').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
 
-  // Populate user chips — all workers except current user
+  // Populate chips
   const users = getUsers().filter(u => !u.isAdmin);
-  const chips = document.getElementById('asmline-user-chips');
-  chips.innerHTML = users.map(u => {
+  document.getElementById('asmline-user-chips').innerHTML = users.map(u => {
     const name = u.name || u.username;
     const sel = _asmLineWorkers.includes(name);
-    return `<div class="asmline-chip ${sel?'selected':''}" data-name="${name}" onclick="toggleAsmChip(this)">
-      <div class="asmline-chip-dot"></div>${name}
-    </div>`;
+    return '<div class="asmline-chip ' + (sel?'selected':'') + '" data-name="' + name + '" onclick="toggleAsmChip(this)">'
+      + '<div class="asmline-chip-dot"></div>' + name + '</div>';
   }).join('');
 
-  // Restore checkbox state
   const check = document.getElementById('asmline-check');
   check.checked = _asmLineWorkers.length > 0;
-  const wrap = document.getElementById('asmline-users-wrap');
-  wrap.classList.toggle('open', check.checked);
-  updateAsmConfirmRow();
+  document.getElementById('asmline-users-wrap').classList.toggle('open', check.checked);
+  updateAsmConfirmBtn();
 
-  panel.classList.add('open');
-  // Smooth scroll to panel
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // Position popover below the button (like catalog menu)
+  if (btn) {
+    const rect = btn.getBoundingClientRect();
+    let left = rect.right - 220;
+    if (left < 8) left = 8;
+    if (left + 220 > window.innerWidth - 8) left = window.innerWidth - 228;
+    let top = rect.bottom + 6;
+    if (top + 320 > window.innerHeight) top = rect.top - 320;
+    pop.style.left = left + 'px';
+    pop.style.top  = top  + 'px';
+  }
+  pop.classList.add('open');
 }
 
 function toggleAsmLineUsers(cb) {
@@ -2859,7 +2860,7 @@ function toggleAsmLineUsers(cb) {
   if (!cb.checked) {
     _asmLineWorkers = [];
     document.querySelectorAll('.asmline-chip').forEach(c => c.classList.remove('selected'));
-    updateAsmConfirmRow();
+    updateAsmConfirmBtn();
   }
 }
 
@@ -2871,29 +2872,63 @@ function toggleAsmChip(el) {
   } else {
     _asmLineWorkers = _asmLineWorkers.filter(n => n !== name);
   }
-  updateAsmConfirmRow();
+  updateAsmConfirmBtn();
 }
 
-function updateAsmConfirmRow() {
-  const row = document.getElementById('asmline-confirm-row');
+function updateAsmConfirmBtn() {
   const hasWorkers = _asmLineWorkers.length > 0 && document.getElementById('asmline-check').checked;
-  row.classList.toggle('visible', hasWorkers);
-  if (hasWorkers) {
-    document.getElementById('asmline-status-text').textContent = _asmLineWorkers.length + ' worker' + (_asmLineWorkers.length > 1 ? 's' : '') + ' selected';
-  }
+  const confirmBtn = document.getElementById('asmline-confirm-btn');
+  const clearBtn   = document.getElementById('asmline-clear-btn');
+  const statusEl   = document.getElementById('asmline-status-text');
+  // Check if this task already has a confirmed assembly line
+  const alreadySet = _asmLineTask && document.getElementById('badge-' + _asmLineTask.replace(/[^a-zA-Z0-9]/g,'_'))
+    && document.getElementById('badge-' + _asmLineTask.replace(/[^a-zA-Z0-9]/g,'_')).style.display !== 'none';
+  confirmBtn.classList.toggle('visible', hasWorkers);
+  clearBtn.classList.toggle('visible', alreadySet || false);
+  statusEl.classList.toggle('visible', hasWorkers);
+  if (hasWorkers) statusEl.textContent = _asmLineWorkers.length + ' selected';
 }
 
 function confirmAsmLine() {
   if (!_asmLineTask || _asmLineWorkers.length === 0) return;
-  // Show badge on task row
   const badgeId = 'badge-' + _asmLineTask.replace(/[^a-zA-Z0-9]/g,'_');
   const badge = document.getElementById(badgeId);
   if (badge) badge.style.display = 'inline-flex';
-  // Close panel
-  document.getElementById('asmline-panel').classList.remove('open');
-  document.querySelectorAll('.btn-asmline').forEach(b => b.classList.remove('active'));
-  showToast('⚡ Assembly Line set for "' + _asmLineTask + '" with ' + _asmLineWorkers.length + ' workers');
+  // Mark button as confirmed
+  const btn = document.querySelector('.btn-asmline[data-task="' + _asmLineTask + '"]');
+  if (btn) { btn.textContent = '⚡'; btn.classList.add('active'); }
+  document.getElementById('asmline-popover').classList.remove('open');
+  showToast('⚡ Assembly Line set for "' + _asmLineTask + '" — ' + _asmLineWorkers.length + ' workers');
 }
+
+function clearAsmLine() {
+  if (!_asmLineTask) return;
+  const badgeId = 'badge-' + _asmLineTask.replace(/[^a-zA-Z0-9]/g,'_');
+  const badge = document.getElementById(badgeId);
+  if (badge) badge.style.display = 'none';
+  const btn = document.querySelector('.btn-asmline[data-task="' + _asmLineTask + '"]');
+  if (btn) { btn.textContent = '⚙'; btn.classList.remove('active'); }
+  _asmLineTask = null;
+  _asmLineWorkers = [];
+  document.getElementById('asmline-check').checked = false;
+  document.getElementById('asmline-users-wrap').classList.remove('open');
+  document.getElementById('asmline-confirm-btn').classList.remove('visible');
+  document.getElementById('asmline-status-text').classList.remove('visible');
+  document.querySelectorAll('.asmline-chip').forEach(c => c.classList.remove('selected'));
+  document.getElementById('asmline-popover').classList.remove('open');
+  document.querySelectorAll('.btn-asmline').forEach(b => b.classList.remove('active'));
+  showToast('Assembly Line cleared.');
+}
+
+// Close asmline popover on outside click
+document.addEventListener('click', function(e) {
+  const pop = document.getElementById('asmline-popover');
+  if (!pop || !pop.classList.contains('open')) return;
+  if (!pop.contains(e.target) && !e.target.closest('.btn-asmline')) {
+    pop.classList.remove('open');
+    document.querySelectorAll('.btn-asmline').forEach(b => b.classList.remove('active'));
+  }
+}, true);
 
 function toggleWeeklyBlock(id) {
   const el = document.getElementById(id);
@@ -3849,6 +3884,24 @@ loadAllFromFirestore().then(async () => {
     </div>
   </div>
 </div>
+<!-- Assembly Line Popover -->
+<div id="asmline-popover">
+  <div class="asmline-pop-title">⚡ Assembly Line</div>
+  <div class="asmline-toggle-row">
+    <input type="checkbox" class="asmline-checkbox" id="asmline-check" onchange="toggleAsmLineUsers(this)">
+    <label class="asmline-toggle-label" for="asmline-check">Shared task</label>
+  </div>
+  <div class="asmline-users-wrap" id="asmline-users-wrap">
+    <div class="asmline-sep"></div>
+    <div class="asmline-users-label">Participants</div>
+    <div class="asmline-user-list" id="asmline-user-chips"></div>
+    <div class="asmline-sep"></div>
+    <button class="asmline-confirm-btn" id="asmline-confirm-btn" onclick="confirmAsmLine()">✓ Confirm</button>
+    <button class="asmline-clear-btn" id="asmline-clear-btn" onclick="clearAsmLine()">✕ Clear Assembly Line</button>
+    <div class="asmline-status" id="asmline-status-text"></div>
+  </div>
+</div>
+
 <!-- Skill Detail Modal -->
 <div id="skill-detail-modal">
   <div class="skill-modal-box">
