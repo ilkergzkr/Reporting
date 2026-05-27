@@ -238,12 +238,13 @@
   .btn-asmline { background:none; border:1px solid var(--border2); border-radius:7px; padding:0.25rem 0.45rem; cursor:pointer; color:var(--muted); font-size:0.78rem; line-height:1; transition:all 0.15s; flex-shrink:0; }
   .btn-asmline:hover, .btn-asmline.active { border-color:var(--accent); color:var(--accent); background:rgba(79,110,247,0.1); }
   #asmline-popover {
-    position:fixed; z-index:9999; display:none;
+    position:fixed; z-index:9999;
+    visibility:hidden; pointer-events:none; opacity:0;
     background:var(--surface); border:1px solid var(--border2);
     border-radius:12px; padding:0.85rem 1rem;
     width:220px; box-shadow:0 8px 28px rgba(0,0,0,0.65);
   }
-  #asmline-popover.open { display:block; }
+  #asmline-popover.open { visibility:visible; pointer-events:auto; opacity:1; }
   .asmline-pop-title { font-size:0.7rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:0.65rem; }
   .asmline-toggle-row { display:flex; align-items:center; gap:0.55rem; margin-bottom:0.6rem; }
   .asmline-toggle-label { font-size:0.8rem; font-weight:600; cursor:pointer; user-select:none; }
@@ -278,10 +279,8 @@
   .notes-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 0.5rem; }
 
   .submit-row {
-    position: sticky; bottom: 0; left: 0; right: 0;
-    padding: 1rem 0 0.5rem; margin-top: 1.5rem;
-    background: linear-gradient(to bottom, transparent, var(--bg) 35%);
-    z-index: 50;
+    margin-top: 1.5rem;
+    padding: 0.5rem 0;
   }
   .btn-submit {
     display: block; width: 100%; padding: 1rem;
