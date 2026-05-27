@@ -1685,6 +1685,10 @@ function goTo(page) {
   if (page === 'page-profile') renderProfile();
   if (page === 'page-report') renderProductGrid();
   window.scrollTo(0, 0);
+  // Always close floating popovers on navigation
+  const asmPop = document.getElementById('asmline-popover');
+  if (asmPop) asmPop.classList.remove('open');
+  document.querySelectorAll('.btn-asmline').forEach(b => b.classList.remove('active'));
 }
 
 function selectProduct(name) {
