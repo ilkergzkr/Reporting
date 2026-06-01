@@ -946,6 +946,15 @@
       <div class="chevron">›</div>
     </div>
 
+    <div id="weekly-menu-card" class="menu-card" onclick="goTo('page-weekly')" style="display:none;">
+      <div class="menu-icon" style="background: linear-gradient(135deg,#0369a1,#0ea5e9);">📊</div>
+      <div>
+        <div class="menu-label">Weekly Output</div>
+        <div class="menu-desc">See this week's team production</div>
+      </div>
+      <div class="chevron">›</div>
+    </div>
+
     <div class="menu-card" onclick="goTo('page-profile')">
       <div class="menu-icon" style="background: linear-gradient(135deg,#0f766e,#10b981);">👤</div>
       <div>
@@ -954,6 +963,15 @@
       </div>
       <div class="chevron">›</div>
     </div>
+  </div>
+
+  <!-- WORKER: WEEKLY OUTPUT -->
+  <div id="page-weekly" class="page">
+    <div class="page-header">
+      <button class="btn-back" onclick="goTo('page-home')">← Back</button>
+      <div class="page-title">Weekly Output</div>
+    </div>
+    <div id="weekly-output-worker"></div>
   </div>
 
   <!-- REPORT: PRODUCT SELECT -->
@@ -1666,6 +1684,7 @@ function enterApp() {
   avatarEl.appendChild(avatarImg);
   document.getElementById('home-welcome').textContent = currentUser.name || currentUser.username;
   document.getElementById('admin-menu-card').style.display = currentUser.isAdmin ? 'flex' : 'none';
+  document.getElementById('weekly-menu-card').style.display = currentUser.isAdmin ? 'none' : 'flex';
   applyLang();
   goTo('page-home');
 }
@@ -1684,6 +1703,7 @@ function goTo(page) {
   if (page === 'page-admin') renderAdmin();
   if (page === 'page-profile') renderProfile();
   if (page === 'page-report') renderProductGrid();
+  if (page === 'page-weekly') renderWorkerWeekly();
   window.scrollTo(0, 0);
   // Always close floating popovers on navigation
   const asmPop = document.getElementById('asmline-popover');
@@ -2950,6 +2970,25 @@ document.addEventListener('click', function(e) {
     document.querySelectorAll('.btn-asmline').forEach(b => b.classList.remove('active'));
   }
 }, true);
+
+function renderWorkerWeekly(offset) {
+  if (offset === undefined) offset = 0;
+  // Temporarily swap container so renderWeeklyOutput renders into worker page
+  const adminContainer = document.getElementById('weekly-output');
+  const workerContainer = document.getElementById('weekly-output-worker');
+  if (!workerContainer) return;
+  // Swap ID, render, swap back
+  if (adminContainer) adminContainer.id = 'weekly-output-hidden';
+  workerContainer.id = 'weekly-output';
+  renderWeeklyOutput(offset);
+  workerContainer.id = 'weekly-output-worker';
+  if (adminContainer) adminContainer.id = 'weekly-output';
+  // Fix nav buttons to call renderWorkerWeekly
+  workerContainer.querySelectorAll('.weekly-nav button').forEach((btn, i) => {
+    const newOffset = i === 0 ? offset - 1 : offset + 1;
+    btn.setAttribute('onclick', 'renderWorkerWeekly(' + newOffset + ')');
+  });
+}
 
 function toggleWeeklyBlock(id) {
   const el = document.getElementById(id);
