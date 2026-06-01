@@ -3526,11 +3526,19 @@ function applyLang() {
   set('btn-logout-main', T('logout'));
   // Home
   const greet = document.querySelector('.home-greeting'); if (greet) greet.textContent = T('homeGreeting');
-  const labels = document.querySelectorAll('.menu-card .menu-label');
-  const descs  = document.querySelectorAll('.menu-card .menu-desc');
-  if (labels[0]) labels[0].textContent = T('menuReport');   if (descs[0]) descs[0].textContent = T('menuReportDesc');
-  if (labels[1]) labels[1].textContent = T('menuAdmin');    if (descs[1]) descs[1].textContent = T('menuAdminDesc');
-  if (labels[2]) labels[2].textContent = T('menuProfile');  if (descs[2]) descs[2].textContent = T('menuProfileDesc');
+  // Use IDs instead of index — avoids weekly-review card shifting positions
+  const reportCard   = document.querySelector('#page-home .menu-card:first-of-type .menu-label');
+  const adminCard    = document.querySelector('#admin-menu-card .menu-label');
+  const adminDesc    = document.querySelector('#admin-menu-card .menu-desc');
+  const profileCard  = document.querySelector('#page-home .menu-card:last-of-type .menu-label');
+  const profileDesc  = document.querySelector('#page-home .menu-card:last-of-type .menu-desc');
+  const reportDesc   = document.querySelector('#page-home .menu-card:first-of-type .menu-desc');
+  if (reportCard)  reportCard.textContent  = T('menuReport');
+  if (reportDesc)  reportDesc.textContent  = T('menuReportDesc');
+  if (adminCard)   adminCard.textContent   = T('menuAdmin');
+  if (adminDesc)   adminDesc.textContent   = T('menuAdminDesc');
+  if (profileCard) profileCard.textContent = T('menuProfile');
+  if (profileDesc) profileDesc.textContent = T('menuProfileDesc');
   // Back buttons
   document.querySelectorAll('.btn-back').forEach(b => { b.textContent = T('back'); });
   // Report form
