@@ -2225,10 +2225,20 @@ async function renameProduct(pi, newName) {
   if (cat.products.find((p, i) => i !== pi && p.name.toLowerCase() === newName.toLowerCase())) {
     showToast('A product with that name already exists.'); renderCatalogEditor(); return;
   }
+  const oldName = prod.name;
   // Migrate assemblies key
-  const asms = cat.assemblies[prod.name] || [];
-  delete cat.assemblies[prod.name];
+  const asms = cat.assemblies[oldName] || [];
+  delete cat.assemblies[oldName];
   cat.assemblies[newName] = asms;
+  // Migrate per-product task keys (oldName::asm -> newName::asm) so existing tasks aren't orphaned
+  asms.forEach(asm => {
+    const oldKey = oldName + '::' + asm;
+    const newKey = newName + '::' + asm;
+    if (cat.tasks[oldKey] && !cat.tasks[newKey]) {
+      cat.tasks[newKey] = cat.tasks[oldKey];
+      delete cat.tasks[oldKey];
+    }
+  });
   prod.name = newName;
   saveCatalogAsync(cat);
   renderCatalogEditor();
@@ -2242,12 +2252,20 @@ async function renameAssembly(pi, ai, newName) {
   const prodName = cat.products[pi].name;
   const oldName = (cat.assemblies[prodName] || [])[ai];
   if (!newName || newName === oldName) return;
-  // Rename in all products that reference this assembly
+  // Rename in all products that reference this assembly, migrating each product's task key too
   Object.keys(cat.assemblies).forEach(p => {
     const idx = cat.assemblies[p].indexOf(oldName);
-    if (idx !== -1) cat.assemblies[p][idx] = newName;
+    if (idx !== -1) {
+      cat.assemblies[p][idx] = newName;
+      const oldKey = p + '::' + oldName;
+      const newKey = p + '::' + newName;
+      if (cat.tasks[oldKey] && !cat.tasks[newKey]) {
+        cat.tasks[newKey] = cat.tasks[oldKey];
+        delete cat.tasks[oldKey];
+      }
+    }
   });
-  // Migrate tasks key
+  // Migrate legacy bare-name tasks key (pre-migration format), if still present
   if (cat.tasks[oldName]) {
     cat.tasks[newName] = cat.tasks[oldName];
     delete cat.tasks[oldName];
@@ -3192,7 +3210,7 @@ function openDeleteModal(reportId, worker, date) {
   document.getElementById('delete-report-modal').classList.add('active');
 }
 
-function closeDeleteModal() {
+function closeDeleteReportModal() {
   _pendingDeleteId = null;
   document.getElementById('delete-report-modal').classList.remove('active');
 }
@@ -3200,7 +3218,7 @@ function closeDeleteModal() {
 async function confirmDeleteReport() {
   if (!_pendingDeleteId) return;
   const id = _pendingDeleteId;
-  closeDeleteModal();
+  closeDeleteReportModal();
   try {
     await db.collection('reports').doc(id).delete();
     // Remove from local cache immediately
@@ -3986,7 +4004,7 @@ loadAllFromFirestore().then(async () => {
     <h3>Delete Report?</h3>
     <p id="delete-modal-desc">This will permanently remove the report from the database. This cannot be undone.</p>
     <div class="delete-modal-actions">
-      <button class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn-secondary" onclick="closeDeleteReportModal()">Cancel</button>
       <button class="btn-primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);" onclick="confirmDeleteReport()">Delete</button>
     </div>
   </div>
